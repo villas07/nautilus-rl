@@ -1,0 +1,216 @@
+# Autonomous System Configuration
+# El sistema actúa automáticamente según estos parámetros
+# Solo alerta al usuario si es CRÍTICO
+
+version: "1.0"
+last_updated: "2026-02-02"
+
+# =============================================================================
+# DQ-001: VALIDATION THRESHOLDS
+# Agentes que no pasen estos filtros son descartados automáticamente
+# =============================================================================
+validation:
+  filter_1_basic:
+    min_sharpe_ratio: 1.5
+    max_drawdown_pct: 15.0
+    min_win_rate_pct: 50.0
+    min_profit_factor: 1.2
+    min_trades: 50  # Mínimo de trades para ser estadísticamente relevante
+
+  filter_2_cross_validation:
+    min_out_of_sample_sharpe: 1.0  # Puede ser menor que in-sample
+    max_performance_degradation_pct: 30.0  # vs in-sample
+
+  filter_3_diversity:
+    max_correlation: 0.5  # Entre agentes seleccionados
+    min_unique_signals_pct: 20.0  # % de señales que difieren del grupo
+
+  filter_4_walkforward:
+    window_train_months: 12
+    window_test_months: 3
+    min_windows_passed: 3  # De 4 ventanas posibles
+
+  filter_5_paper:
+    min_paper_days: 14
+    max_paper_drawdown_pct: 10.0
+    min_paper_sharpe: 1.0
+
+  # Auto-acción: agentes que no pasen son archivados, no eliminados
+  auto_action: archive_failed
+
+# =============================================================================
+# DQ-002: POSITION SIZING & RISK
+# =============================================================================
+position_sizing:
+  method: confidence_scaled  # fixed, linear, kelly, confidence_scaled
+
+  base_position_usd: 1000  # Posición base por señal
+  max_position_per_symbol_usd: 5000
+  max_total_exposure_usd: 50000
+
+  # Scaling por confianza del voting
+  confidence_scaling:
+    min_confidence: 0.6  # Debajo de esto, no opera
+    low_confidence: 0.7   # 50% del base
+    medium_confidence: 0.8  # 100% del base
+    high_confidence: 0.9   # 150% del base
+
+# =============================================================================
+# DQ-003: TRAINING INFRASTRUCTURE
+# =============================================================================
+training:
+  # Modo híbrido: desarrollo local, producción en RunPod
+  default_mode: local  # local, runpod, hybrid
+
+  local:
+    max_parallel_agents: 2
+    use_gpu: true
+    timesteps_per_agent: 1_000_000  # Reducido para local
+
+  runpod:
+    instance_type: "NVIDIA A100 80GB"
+    max_parallel_agents: 8
+    timesteps_per_agent: 5_000_000
+    auto_shutdown_after_hours: 2
+    max_cost_per_run_usd: 50
+
+  # Auto-switch a RunPod si:
+  auto_runpod_trigger:
+    agents_count_threshold: 10  # Más de 10 agentes → RunPod
+    total_timesteps_threshold: 10_000_000
+
+# =============================================================================
+# CIRCUIT BREAKERS - Acciones automáticas
+# =============================================================================
+circuit_breakers:
+  # Nivel 1: WARNING - Log + continúa
+  # Nivel 2: CAUTION - Reduce exposición 50%
+  # Nivel 3: CRITICAL - Pausa trading + Alerta Telegram
+
+  drawdown:
+    warning_pct: 5.0
+    caution_pct: 10.0
+    critical_pct: 15.0
+    action_on_critical: pause_all_trading
+
+  daily_loss:
+    warning_usd: 500
+    caution_usd: 1000
+    critical_usd: 2000
+    action_on_critical: pause_until_next_day
+
+  consecutive_losses:
+    warning_count: 3
+    caution_count: 5
+    critical_count: 7
+    action_on_critical: reduce_position_50pct
+
+  model_disagreement:
+    # Si los modelos no están de acuerdo
+    warning_agreement_pct: 60  # Menos de 60% de acuerdo
+    caution_agreement_pct: 50
+    critical_agreement_pct: 40
+    action_on_critical: skip_trade
+
+  data_staleness:
+    warning_seconds: 60
+    caution_seconds: 300
+    critical_seconds: 600
+    action_on_critical: pause_trading
+
+# =============================================================================
+# ALERTAS - Solo críticas van a Telegram
+# =============================================================================
+alerts:
+  telegram:
+    enabled: true
+    # Solo estos eventos van a Telegram:
+    critical_events:
+      - circuit_breaker_triggered
+      - daily_loss_exceeded
+      - system_error
+      - model_reload_failed
+      - broker_disconnection
+
+    # Estos NO van a Telegram (solo log):
+    silent_events:
+      - trade_executed
+      - model_validated
+      - position_adjusted
+      - warning_threshold
+
+  # Resumen diario automático a las 22:00
+  daily_summary:
+    enabled: true
+    time: "22:00"
+    include:
+      - total_pnl
+      - trades_count
+      - win_rate
+      - active_positions
+      - models_performance
+
+# =============================================================================
+# AUTONOMOUS DECISIONS - Reglas para auto-gestión
+# =============================================================================
+autonomous_rules:
+  # El sistema puede hacer esto SIN preguntar:
+  allowed_actions:
+    - adjust_position_size
+    - pause_single_model
+    - skip_low_confidence_trade
+    - rebalance_exposure
+    - archive_underperforming_model
+    - switch_to_runpod_training
+
+  # Esto REQUIERE alerta (pero no aprobación):
+  notify_actions:
+    - pause_all_trading
+    - remove_model_from_voting
+    - exceed_daily_budget
+
+  # Esto NUNCA se hace automáticamente:
+  forbidden_actions:
+    - withdraw_funds
+    - change_broker_credentials
+    - delete_trained_models
+    - modify_this_config
+
+# =============================================================================
+# MODELO DE VOTACIÓN
+# =============================================================================
+voting:
+  min_models_required: 5  # Mínimo de modelos para operar
+  min_agreement_pct: 60   # Mínimo acuerdo para señal válida
+
+  aggregation_method: weighted_confidence
+  # weighted_confidence: voto ponderado por Sharpe histórico
+  # majority: voto simple de mayoría
+  # unanimous: todos deben estar de acuerdo
+
+  signal_cooldown_minutes: 60  # No repetir señal en mismo símbolo
+
+  # Peso de cada modelo basado en performance reciente
+  weight_lookback_days: 30
+  weight_metric: sharpe_ratio
+
+# =============================================================================
+# SUPERVISIÓN (Lo que el usuario VE, no aprueba)
+# =============================================================================
+supervision:
+  dashboard_refresh_seconds: 30
+
+  metrics_to_display:
+    - total_pnl_today
+    - total_pnl_week
+    - total_pnl_month
+    - active_positions
+    - voting_confidence
+    - circuit_breaker_status
+    - models_active_count
+
+  grafana_dashboards:
+    - trading_overview
+    - model_performance
+    - risk_metrics
+    - system_health

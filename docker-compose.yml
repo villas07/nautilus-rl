@@ -1,0 +1,116 @@
+version: '3.8'
+
+services:
+  nautilus-trader:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nautilus-agents
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TZ=UTC
+      # IBKR Configuration
+      - IBKR_HOST=${IBKR_HOST:-host.docker.internal}
+      - IBKR_PORT=${IBKR_PORT:-7497}
+      - IBKR_CLIENT_ID=${IBKR_CLIENT_ID:-1}
+      - IBKR_ACCOUNT=${IBKR_ACCOUNT:-}
+      # Binance Configuration
+      - BINANCE_API_KEY=${BINANCE_API_KEY:-}
+      - BINANCE_API_SECRET=${BINANCE_API_SECRET:-}
+      - BINANCE_TESTNET=${BINANCE_TESTNET:-true}
+      # Database Configuration
+      - TIMESCALE_HOST=${TIMESCALE_HOST:-host.docker.internal}
+      - TIMESCALE_PORT=${TIMESCALE_PORT:-5432}
+      - TIMESCALE_DB=${TIMESCALE_DB:-deskgrade}
+      - TIMESCALE_USER=${TIMESCALE_USER:-postgres}
+      - TIMESCALE_PASSWORD=${TIMESCALE_PASSWORD:-}
+      # Telegram Configuration
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      # MLflow Configuration
+      - MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI:-http://host.docker.internal:5000}
+      # Data Providers
+      - POLYGON_API_KEY=${POLYGON_API_KEY:-}
+    volumes:
+      - ./config:/app/config:ro
+      - ./strategies:/app/strategies:ro
+      - ./live:/app/live:ro
+      - ./data/catalog:/app/data/catalog
+      - ./models:/app/models:ro
+      - ./logs:/app/logs
+    ports:
+      - "8000:8000"  # Health check / metrics endpoint
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  # Training service (can be run on-demand)
+  trainer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nautilus-trainer
+    profiles:
+      - training
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TZ=UTC
+      - TIMESCALE_HOST=${TIMESCALE_HOST:-host.docker.internal}
+      - TIMESCALE_PORT=${TIMESCALE_PORT:-5432}
+      - TIMESCALE_DB=${TIMESCALE_DB:-deskgrade}
+      - TIMESCALE_USER=${TIMESCALE_USER:-postgres}
+      - TIMESCALE_PASSWORD=${TIMESCALE_PASSWORD:-}
+      - MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI:-http://host.docker.internal:5000}
+      - POLYGON_API_KEY=${POLYGON_API_KEY:-}
+    volumes:
+      - ./config:/app/config:ro
+      - ./gym_env:/app/gym_env:ro
+      - ./training:/app/training:ro
+      - ./data/catalog:/app/data/catalog
+      - ./models:/app/models
+      - ./logs:/app/logs
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: ["python", "-m", "training.train_batch"]
+
+  # Validation service
+  validator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nautilus-validator
+    profiles:
+      - validation
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TZ=UTC
+      - TIMESCALE_HOST=${TIMESCALE_HOST:-host.docker.internal}
+      - TIMESCALE_PORT=${TIMESCALE_PORT:-5432}
+      - TIMESCALE_DB=${TIMESCALE_DB:-deskgrade}
+      - TIMESCALE_USER=${TIMESCALE_USER:-postgres}
+      - TIMESCALE_PASSWORD=${TIMESCALE_PASSWORD:-}
+      - POLYGON_API_KEY=${POLYGON_API_KEY:-}
+    volumes:
+      - ./config:/app/config:ro
+      - ./validation:/app/validation:ro
+      - ./data/catalog:/app/data/catalog
+      - ./models:/app/models
+      - ./logs:/app/logs
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: ["python", "-m", "validation.run_validation"]
+
+networks:
+  default:
+    name: nautilus-network

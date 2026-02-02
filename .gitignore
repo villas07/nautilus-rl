@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+*.egg
+*.egg-info/
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Data
+data/catalog/*.parquet
+*.parquet
+*.zip
+models/
+checkpoints/
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env
+.env.local
+
+# Windows
+nul
+NUL
+Thumbs.db
+desktop.ini
+
+# MLflow
+mlruns/
+
+# Temp
+*.tmp
+*.temp
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/

@@ -1,0 +1,254 @@
+# Configuration for 500 RL Trading Agents
+# Each agent is trained on a specific symbol, timeframe, and algorithm combination
+
+defaults:
+  # Training parameters
+  algorithm: PPO
+  total_timesteps: 5_000_000
+  learning_rate: 0.0003
+  batch_size: 256
+  n_epochs: 10
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.01
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+
+  # Environment parameters
+  lookback_period: 20
+  max_episode_steps: 1512  # ~1 year hourly
+  initial_capital: 100000.0
+  reward_type: sharpe
+
+  # Infrastructure
+  max_parallel: 4
+  n_envs: 2
+  output_dir: /app/models
+  log_dir: /app/logs
+  catalog_path: /app/data/catalog
+
+  # MLflow
+  use_mlflow: true
+  mlflow_experiment: rl-agents-500
+
+# Symbols configuration
+symbols:
+  # US Stocks - Major indices ETFs
+  stocks_major:
+    - {symbol: SPY, venue: NASDAQ, asset_type: equity}
+    - {symbol: QQQ, venue: NASDAQ, asset_type: equity}
+    - {symbol: IWM, venue: NASDAQ, asset_type: equity}
+    - {symbol: DIA, venue: NYSE, asset_type: equity}
+
+  # US Stocks - Sector ETFs
+  stocks_sectors:
+    - {symbol: XLF, venue: NYSE, asset_type: equity}   # Financials
+    - {symbol: XLK, venue: NYSE, asset_type: equity}   # Technology
+    - {symbol: XLE, venue: NYSE, asset_type: equity}   # Energy
+    - {symbol: XLV, venue: NYSE, asset_type: equity}   # Healthcare
+    - {symbol: XLI, venue: NYSE, asset_type: equity}   # Industrials
+    - {symbol: XLY, venue: NYSE, asset_type: equity}   # Consumer Discretionary
+    - {symbol: XLP, venue: NYSE, asset_type: equity}   # Consumer Staples
+    - {symbol: XLU, venue: NYSE, asset_type: equity}   # Utilities
+    - {symbol: XLB, venue: NYSE, asset_type: equity}   # Materials
+    - {symbol: XLRE, venue: NYSE, asset_type: equity}  # Real Estate
+
+  # US Stocks - Top tech
+  stocks_tech:
+    - {symbol: AAPL, venue: NASDAQ, asset_type: equity}
+    - {symbol: MSFT, venue: NASDAQ, asset_type: equity}
+    - {symbol: GOOGL, venue: NASDAQ, asset_type: equity}
+    - {symbol: AMZN, venue: NASDAQ, asset_type: equity}
+    - {symbol: NVDA, venue: NASDAQ, asset_type: equity}
+    - {symbol: META, venue: NASDAQ, asset_type: equity}
+    - {symbol: TSLA, venue: NASDAQ, asset_type: equity}
+
+  # Crypto - Major pairs
+  crypto_major:
+    - {symbol: BTCUSDT, venue: BINANCE, asset_type: crypto}
+    - {symbol: ETHUSDT, venue: BINANCE, asset_type: crypto}
+    - {symbol: BNBUSDT, venue: BINANCE, asset_type: crypto}
+    - {symbol: SOLUSDT, venue: BINANCE, asset_type: crypto}
+    - {symbol: XRPUSDT, venue: BINANCE, asset_type: crypto}
+    - {symbol: ADAUSDT, venue: BINANCE, asset_type: crypto}
+    - {symbol: DOGEUSDT, venue: BINANCE, asset_type: crypto}
+    - {symbol: AVAXUSDT, venue: BINANCE, asset_type: crypto}
+    - {symbol: DOTUSDT, venue: BINANCE, asset_type: crypto}
+    - {symbol: MATICUSDT, venue: BINANCE, asset_type: crypto}
+
+  # Crypto - DeFi
+  crypto_defi:
+    - {symbol: LINKUSDT, venue: BINANCE, asset_type: crypto}
+    - {symbol: UNIUSDT, venue: BINANCE, asset_type: crypto}
+    - {symbol: AAVEUSDT, venue: BINANCE, asset_type: crypto}
+
+# Timeframes to train on
+timeframes:
+  - 1h
+  - 4h
+  - 1d
+
+# Algorithms with specific hyperparameters
+algorithms:
+  PPO:
+    learning_rate: 0.0003
+    batch_size: 256
+    n_epochs: 10
+    clip_range: 0.2
+    ent_coef: 0.01
+
+  A2C:
+    learning_rate: 0.0007
+    n_steps: 5
+    ent_coef: 0.01
+    vf_coef: 0.25
+
+  SAC:
+    learning_rate: 0.0003
+    batch_size: 256
+    buffer_size: 1000000
+    learning_starts: 10000
+    tau: 0.005
+
+# Reward function variations
+reward_types:
+  - sharpe
+  - sortino
+  - risk_adjusted
+
+# Agent generation template
+# Total agents = symbols × timeframes × algorithms × reward_types
+# With current config: ~30 symbols × 3 timeframes × 3 algorithms × 3 rewards = 810 combinations
+# We'll select 500 strategically
+
+# Generated agents list (subset of 500)
+agents:
+  # === BATCH 1: Major ETFs with PPO (High Priority) ===
+  - {agent_id: agent_001, symbol: SPY, venue: NASDAQ, timeframe: 1h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_002, symbol: SPY, venue: NASDAQ, timeframe: 1h, algorithm: PPO, reward_type: sortino}
+  - {agent_id: agent_003, symbol: SPY, venue: NASDAQ, timeframe: 4h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_004, symbol: SPY, venue: NASDAQ, timeframe: 1d, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_005, symbol: QQQ, venue: NASDAQ, timeframe: 1h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_006, symbol: QQQ, venue: NASDAQ, timeframe: 1h, algorithm: PPO, reward_type: sortino}
+  - {agent_id: agent_007, symbol: QQQ, venue: NASDAQ, timeframe: 4h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_008, symbol: QQQ, venue: NASDAQ, timeframe: 1d, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_009, symbol: IWM, venue: NASDAQ, timeframe: 1h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_010, symbol: IWM, venue: NASDAQ, timeframe: 4h, algorithm: PPO, reward_type: sharpe}
+
+  # === BATCH 2: Crypto Major with PPO ===
+  - {agent_id: agent_011, symbol: BTCUSDT, venue: BINANCE, timeframe: 1h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_012, symbol: BTCUSDT, venue: BINANCE, timeframe: 1h, algorithm: PPO, reward_type: sortino}
+  - {agent_id: agent_013, symbol: BTCUSDT, venue: BINANCE, timeframe: 1h, algorithm: PPO, reward_type: risk_adjusted}
+  - {agent_id: agent_014, symbol: BTCUSDT, venue: BINANCE, timeframe: 4h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_015, symbol: BTCUSDT, venue: BINANCE, timeframe: 1d, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_016, symbol: ETHUSDT, venue: BINANCE, timeframe: 1h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_017, symbol: ETHUSDT, venue: BINANCE, timeframe: 1h, algorithm: PPO, reward_type: sortino}
+  - {agent_id: agent_018, symbol: ETHUSDT, venue: BINANCE, timeframe: 4h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_019, symbol: ETHUSDT, venue: BINANCE, timeframe: 1d, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_020, symbol: BNBUSDT, venue: BINANCE, timeframe: 1h, algorithm: PPO, reward_type: sharpe}
+
+  # === BATCH 3: Tech Stocks with PPO ===
+  - {agent_id: agent_021, symbol: AAPL, venue: NASDAQ, timeframe: 1h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_022, symbol: AAPL, venue: NASDAQ, timeframe: 4h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_023, symbol: MSFT, venue: NASDAQ, timeframe: 1h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_024, symbol: MSFT, venue: NASDAQ, timeframe: 4h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_025, symbol: GOOGL, venue: NASDAQ, timeframe: 1h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_026, symbol: NVDA, venue: NASDAQ, timeframe: 1h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_027, symbol: NVDA, venue: NASDAQ, timeframe: 4h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_028, symbol: TSLA, venue: NASDAQ, timeframe: 1h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_029, symbol: META, venue: NASDAQ, timeframe: 1h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_030, symbol: AMZN, venue: NASDAQ, timeframe: 1h, algorithm: PPO, reward_type: sharpe}
+
+  # === BATCH 4: SAC Algorithm Variants ===
+  - {agent_id: agent_031, symbol: SPY, venue: NASDAQ, timeframe: 1h, algorithm: SAC, reward_type: sharpe}
+  - {agent_id: agent_032, symbol: SPY, venue: NASDAQ, timeframe: 4h, algorithm: SAC, reward_type: sharpe}
+  - {agent_id: agent_033, symbol: QQQ, venue: NASDAQ, timeframe: 1h, algorithm: SAC, reward_type: sharpe}
+  - {agent_id: agent_034, symbol: BTCUSDT, venue: BINANCE, timeframe: 1h, algorithm: SAC, reward_type: sharpe}
+  - {agent_id: agent_035, symbol: BTCUSDT, venue: BINANCE, timeframe: 4h, algorithm: SAC, reward_type: sharpe}
+  - {agent_id: agent_036, symbol: ETHUSDT, venue: BINANCE, timeframe: 1h, algorithm: SAC, reward_type: sharpe}
+  - {agent_id: agent_037, symbol: ETHUSDT, venue: BINANCE, timeframe: 4h, algorithm: SAC, reward_type: sharpe}
+  - {agent_id: agent_038, symbol: AAPL, venue: NASDAQ, timeframe: 1h, algorithm: SAC, reward_type: sharpe}
+  - {agent_id: agent_039, symbol: NVDA, venue: NASDAQ, timeframe: 1h, algorithm: SAC, reward_type: sharpe}
+  - {agent_id: agent_040, symbol: TSLA, venue: NASDAQ, timeframe: 1h, algorithm: SAC, reward_type: sharpe}
+
+  # === BATCH 5: A2C Algorithm Variants ===
+  - {agent_id: agent_041, symbol: SPY, venue: NASDAQ, timeframe: 1h, algorithm: A2C, reward_type: sharpe}
+  - {agent_id: agent_042, symbol: QQQ, venue: NASDAQ, timeframe: 1h, algorithm: A2C, reward_type: sharpe}
+  - {agent_id: agent_043, symbol: BTCUSDT, venue: BINANCE, timeframe: 1h, algorithm: A2C, reward_type: sharpe}
+  - {agent_id: agent_044, symbol: ETHUSDT, venue: BINANCE, timeframe: 1h, algorithm: A2C, reward_type: sharpe}
+  - {agent_id: agent_045, symbol: AAPL, venue: NASDAQ, timeframe: 1h, algorithm: A2C, reward_type: sharpe}
+  - {agent_id: agent_046, symbol: NVDA, venue: NASDAQ, timeframe: 1h, algorithm: A2C, reward_type: sharpe}
+  - {agent_id: agent_047, symbol: SOLUSDT, venue: BINANCE, timeframe: 1h, algorithm: A2C, reward_type: sharpe}
+  - {agent_id: agent_048, symbol: XRPUSDT, venue: BINANCE, timeframe: 1h, algorithm: A2C, reward_type: sharpe}
+  - {agent_id: agent_049, symbol: IWM, venue: NASDAQ, timeframe: 1h, algorithm: A2C, reward_type: sharpe}
+  - {agent_id: agent_050, symbol: DIA, venue: NYSE, timeframe: 1h, algorithm: A2C, reward_type: sharpe}
+
+  # === BATCH 6: Sector ETFs ===
+  - {agent_id: agent_051, symbol: XLF, venue: NYSE, timeframe: 1h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_052, symbol: XLK, venue: NYSE, timeframe: 1h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_053, symbol: XLE, venue: NYSE, timeframe: 1h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_054, symbol: XLV, venue: NYSE, timeframe: 1h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_055, symbol: XLI, venue: NYSE, timeframe: 1h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_056, symbol: XLF, venue: NYSE, timeframe: 4h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_057, symbol: XLK, venue: NYSE, timeframe: 4h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_058, symbol: XLE, venue: NYSE, timeframe: 4h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_059, symbol: XLY, venue: NYSE, timeframe: 1h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_060, symbol: XLP, venue: NYSE, timeframe: 1h, algorithm: PPO, reward_type: sharpe}
+
+  # === BATCH 7: More Crypto ===
+  - {agent_id: agent_061, symbol: SOLUSDT, venue: BINANCE, timeframe: 1h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_062, symbol: SOLUSDT, venue: BINANCE, timeframe: 4h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_063, symbol: XRPUSDT, venue: BINANCE, timeframe: 1h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_064, symbol: ADAUSDT, venue: BINANCE, timeframe: 1h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_065, symbol: DOGEUSDT, venue: BINANCE, timeframe: 1h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_066, symbol: AVAXUSDT, venue: BINANCE, timeframe: 1h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_067, symbol: DOTUSDT, venue: BINANCE, timeframe: 1h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_068, symbol: MATICUSDT, venue: BINANCE, timeframe: 1h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_069, symbol: LINKUSDT, venue: BINANCE, timeframe: 1h, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_070, symbol: UNIUSDT, venue: BINANCE, timeframe: 1h, algorithm: PPO, reward_type: sharpe}
+
+  # === BATCH 8: Daily timeframe specialists ===
+  - {agent_id: agent_071, symbol: SPY, venue: NASDAQ, timeframe: 1d, algorithm: PPO, reward_type: sortino}
+  - {agent_id: agent_072, symbol: QQQ, venue: NASDAQ, timeframe: 1d, algorithm: PPO, reward_type: sortino}
+  - {agent_id: agent_073, symbol: BTCUSDT, venue: BINANCE, timeframe: 1d, algorithm: PPO, reward_type: sortino}
+  - {agent_id: agent_074, symbol: ETHUSDT, venue: BINANCE, timeframe: 1d, algorithm: PPO, reward_type: sortino}
+  - {agent_id: agent_075, symbol: AAPL, venue: NASDAQ, timeframe: 1d, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_076, symbol: MSFT, venue: NASDAQ, timeframe: 1d, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_077, symbol: GOOGL, venue: NASDAQ, timeframe: 1d, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_078, symbol: NVDA, venue: NASDAQ, timeframe: 1d, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_079, symbol: XLF, venue: NYSE, timeframe: 1d, algorithm: PPO, reward_type: sharpe}
+  - {agent_id: agent_080, symbol: XLK, venue: NYSE, timeframe: 1d, algorithm: PPO, reward_type: sharpe}
+
+  # === BATCH 9: Risk-adjusted reward specialists ===
+  - {agent_id: agent_081, symbol: SPY, venue: NASDAQ, timeframe: 1h, algorithm: PPO, reward_type: risk_adjusted}
+  - {agent_id: agent_082, symbol: QQQ, venue: NASDAQ, timeframe: 1h, algorithm: PPO, reward_type: risk_adjusted}
+  - {agent_id: agent_083, symbol: BTCUSDT, venue: BINANCE, timeframe: 4h, algorithm: PPO, reward_type: risk_adjusted}
+  - {agent_id: agent_084, symbol: ETHUSDT, venue: BINANCE, timeframe: 4h, algorithm: PPO, reward_type: risk_adjusted}
+  - {agent_id: agent_085, symbol: AAPL, venue: NASDAQ, timeframe: 1h, algorithm: PPO, reward_type: risk_adjusted}
+  - {agent_id: agent_086, symbol: NVDA, venue: NASDAQ, timeframe: 1h, algorithm: PPO, reward_type: risk_adjusted}
+  - {agent_id: agent_087, symbol: SOLUSDT, venue: BINANCE, timeframe: 1h, algorithm: PPO, reward_type: risk_adjusted}
+  - {agent_id: agent_088, symbol: XLF, venue: NYSE, timeframe: 1h, algorithm: PPO, reward_type: risk_adjusted}
+  - {agent_id: agent_089, symbol: IWM, venue: NASDAQ, timeframe: 1h, algorithm: PPO, reward_type: risk_adjusted}
+  - {agent_id: agent_090, symbol: DIA, venue: NYSE, timeframe: 1h, algorithm: PPO, reward_type: risk_adjusted}
+
+  # === BATCH 10: Sortino specialists ===
+  - {agent_id: agent_091, symbol: SPY, venue: NASDAQ, timeframe: 4h, algorithm: PPO, reward_type: sortino}
+  - {agent_id: agent_092, symbol: QQQ, venue: NASDAQ, timeframe: 4h, algorithm: PPO, reward_type: sortino}
+  - {agent_id: agent_093, symbol: BTCUSDT, venue: BINANCE, timeframe: 4h, algorithm: PPO, reward_type: sortino}
+  - {agent_id: agent_094, symbol: ETHUSDT, venue: BINANCE, timeframe: 1h, algorithm: PPO, reward_type: sortino}
+  - {agent_id: agent_095, symbol: AAPL, venue: NASDAQ, timeframe: 1h, algorithm: PPO, reward_type: sortino}
+  - {agent_id: agent_096, symbol: NVDA, venue: NASDAQ, timeframe: 1h, algorithm: PPO, reward_type: sortino}
+  - {agent_id: agent_097, symbol: TSLA, venue: NASDAQ, timeframe: 1h, algorithm: PPO, reward_type: sortino}
+  - {agent_id: agent_098, symbol: META, venue: NASDAQ, timeframe: 1h, algorithm: PPO, reward_type: sortino}
+  - {agent_id: agent_099, symbol: AMZN, venue: NASDAQ, timeframe: 1h, algorithm: PPO, reward_type: sortino}
+  - {agent_id: agent_100, symbol: MSFT, venue: NASDAQ, timeframe: 1h, algorithm: PPO, reward_type: sortino}
+
+# Note: Full 500 agents would continue with similar pattern
+# Generating remaining 400 agents programmatically during training
+
+# Generation rules for remaining agents (401 more to reach 500):
+# - Each symbol gets at least 3 agents (different timeframes/algorithms)
+# - Priority to liquid assets (SPY, QQQ, BTC, ETH) with more variants
+# - Mix of algorithms for diversity
+# - All reward types covered per major asset

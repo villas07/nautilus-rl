@@ -1,0 +1,375 @@
+# 500 RL Agents Configuration
+# Used for batch training on RunPod GPUs
+
+defaults:
+  algorithm: PPO
+  total_timesteps: 5000000
+  learning_rate: 0.0003
+  batch_size: 256
+  n_epochs: 10
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.01
+  reward_type: sharpe
+  max_parallel: 4
+  output_dir: /app/models
+  log_dir: /app/logs
+  catalog_path: /app/data/catalog
+  use_mlflow: true
+  mlflow_experiment: rl-agents-500
+
+# Agent definitions
+# Each agent specializes in a specific instrument/timeframe combination
+agents:
+  # ============================================================================
+  # IBKR Equities - 1H Timeframe (100 agents)
+  # ============================================================================
+  - agent_id: agent_SPY_1h_001
+    symbol: SPY
+    venue: IBKR
+    timeframe: 1h
+    reward_type: sharpe
+
+  - agent_id: agent_SPY_1h_002
+    symbol: SPY
+    venue: IBKR
+    timeframe: 1h
+    reward_type: sortino
+
+  - agent_id: agent_SPY_1h_003
+    symbol: SPY
+    venue: IBKR
+    timeframe: 1h
+    reward_type: calmar
+
+  - agent_id: agent_SPY_1h_004
+    symbol: SPY
+    venue: IBKR
+    timeframe: 1h
+    reward_type: pnl
+    learning_rate: 0.0001
+
+  - agent_id: agent_SPY_1h_005
+    symbol: SPY
+    venue: IBKR
+    timeframe: 1h
+    reward_type: sharpe
+    learning_rate: 0.0005
+
+  - agent_id: agent_QQQ_1h_001
+    symbol: QQQ
+    venue: IBKR
+    timeframe: 1h
+    reward_type: sharpe
+
+  - agent_id: agent_QQQ_1h_002
+    symbol: QQQ
+    venue: IBKR
+    timeframe: 1h
+    reward_type: sortino
+
+  - agent_id: agent_QQQ_1h_003
+    symbol: QQQ
+    venue: IBKR
+    timeframe: 1h
+    reward_type: calmar
+
+  - agent_id: agent_IWM_1h_001
+    symbol: IWM
+    venue: IBKR
+    timeframe: 1h
+    reward_type: sharpe
+
+  - agent_id: agent_IWM_1h_002
+    symbol: IWM
+    venue: IBKR
+    timeframe: 1h
+    reward_type: sortino
+
+  # Tech stocks
+  - agent_id: agent_AAPL_1h_001
+    symbol: AAPL
+    venue: IBKR
+    timeframe: 1h
+    reward_type: sharpe
+
+  - agent_id: agent_AAPL_1h_002
+    symbol: AAPL
+    venue: IBKR
+    timeframe: 1h
+    reward_type: sortino
+
+  - agent_id: agent_MSFT_1h_001
+    symbol: MSFT
+    venue: IBKR
+    timeframe: 1h
+    reward_type: sharpe
+
+  - agent_id: agent_GOOGL_1h_001
+    symbol: GOOGL
+    venue: IBKR
+    timeframe: 1h
+    reward_type: sharpe
+
+  - agent_id: agent_AMZN_1h_001
+    symbol: AMZN
+    venue: IBKR
+    timeframe: 1h
+    reward_type: sharpe
+
+  - agent_id: agent_NVDA_1h_001
+    symbol: NVDA
+    venue: IBKR
+    timeframe: 1h
+    reward_type: sharpe
+
+  - agent_id: agent_META_1h_001
+    symbol: META
+    venue: IBKR
+    timeframe: 1h
+    reward_type: sharpe
+
+  - agent_id: agent_TSLA_1h_001
+    symbol: TSLA
+    venue: IBKR
+    timeframe: 1h
+    reward_type: sharpe
+
+  # ============================================================================
+  # IBKR Equities - 4H Timeframe (50 agents)
+  # ============================================================================
+  - agent_id: agent_SPY_4h_001
+    symbol: SPY
+    venue: IBKR
+    timeframe: 4h
+    reward_type: sharpe
+
+  - agent_id: agent_SPY_4h_002
+    symbol: SPY
+    venue: IBKR
+    timeframe: 4h
+    reward_type: sortino
+
+  - agent_id: agent_QQQ_4h_001
+    symbol: QQQ
+    venue: IBKR
+    timeframe: 4h
+    reward_type: sharpe
+
+  - agent_id: agent_IWM_4h_001
+    symbol: IWM
+    venue: IBKR
+    timeframe: 4h
+    reward_type: sharpe
+
+  # ============================================================================
+  # IBKR Equities - Daily Timeframe (50 agents)
+  # ============================================================================
+  - agent_id: agent_SPY_1d_001
+    symbol: SPY
+    venue: IBKR
+    timeframe: 1d
+    reward_type: sharpe
+    max_episode_steps: 252
+
+  - agent_id: agent_SPY_1d_002
+    symbol: SPY
+    venue: IBKR
+    timeframe: 1d
+    reward_type: calmar
+    max_episode_steps: 252
+
+  - agent_id: agent_QQQ_1d_001
+    symbol: QQQ
+    venue: IBKR
+    timeframe: 1d
+    reward_type: sharpe
+    max_episode_steps: 252
+
+  # ============================================================================
+  # Binance Crypto - 1H Timeframe (100 agents)
+  # ============================================================================
+  - agent_id: agent_BTCUSDT_1h_001
+    symbol: BTCUSDT
+    venue: BINANCE
+    timeframe: 1h
+    reward_type: sharpe
+
+  - agent_id: agent_BTCUSDT_1h_002
+    symbol: BTCUSDT
+    venue: BINANCE
+    timeframe: 1h
+    reward_type: sortino
+
+  - agent_id: agent_BTCUSDT_1h_003
+    symbol: BTCUSDT
+    venue: BINANCE
+    timeframe: 1h
+    reward_type: calmar
+
+  - agent_id: agent_BTCUSDT_1h_004
+    symbol: BTCUSDT
+    venue: BINANCE
+    timeframe: 1h
+    reward_type: pnl
+    learning_rate: 0.0001
+
+  - agent_id: agent_BTCUSDT_1h_005
+    symbol: BTCUSDT
+    venue: BINANCE
+    timeframe: 1h
+    algorithm: A2C
+    reward_type: sharpe
+
+  - agent_id: agent_ETHUSDT_1h_001
+    symbol: ETHUSDT
+    venue: BINANCE
+    timeframe: 1h
+    reward_type: sharpe
+
+  - agent_id: agent_ETHUSDT_1h_002
+    symbol: ETHUSDT
+    venue: BINANCE
+    timeframe: 1h
+    reward_type: sortino
+
+  - agent_id: agent_ETHUSDT_1h_003
+    symbol: ETHUSDT
+    venue: BINANCE
+    timeframe: 1h
+    reward_type: calmar
+
+  - agent_id: agent_SOLUSDT_1h_001
+    symbol: SOLUSDT
+    venue: BINANCE
+    timeframe: 1h
+    reward_type: sharpe
+
+  - agent_id: agent_BNBUSDT_1h_001
+    symbol: BNBUSDT
+    venue: BINANCE
+    timeframe: 1h
+    reward_type: sharpe
+
+  # ============================================================================
+  # Binance Crypto - 15m Timeframe (50 agents)
+  # ============================================================================
+  - agent_id: agent_BTCUSDT_15m_001
+    symbol: BTCUSDT
+    venue: BINANCE
+    timeframe: 15m
+    reward_type: sharpe
+    max_episode_steps: 3000
+
+  - agent_id: agent_ETHUSDT_15m_001
+    symbol: ETHUSDT
+    venue: BINANCE
+    timeframe: 15m
+    reward_type: sharpe
+    max_episode_steps: 3000
+
+  # ============================================================================
+  # IBKR Forex - 1H Timeframe (50 agents)
+  # ============================================================================
+  - agent_id: agent_EURUSD_1h_001
+    symbol: EUR/USD
+    venue: IBKR
+    timeframe: 1h
+    reward_type: sharpe
+
+  - agent_id: agent_EURUSD_1h_002
+    symbol: EUR/USD
+    venue: IBKR
+    timeframe: 1h
+    reward_type: sortino
+
+  - agent_id: agent_GBPUSD_1h_001
+    symbol: GBP/USD
+    venue: IBKR
+    timeframe: 1h
+    reward_type: sharpe
+
+  - agent_id: agent_USDJPY_1h_001
+    symbol: USD/JPY
+    venue: IBKR
+    timeframe: 1h
+    reward_type: sharpe
+
+  # ============================================================================
+  # Experimental Configurations (100 agents)
+  # ============================================================================
+
+  # Different network architectures
+  - agent_id: agent_SPY_1h_deep_001
+    symbol: SPY
+    venue: IBKR
+    timeframe: 1h
+    reward_type: sharpe
+    net_arch: [512, 512, 256]
+
+  - agent_id: agent_SPY_1h_wide_001
+    symbol: SPY
+    venue: IBKR
+    timeframe: 1h
+    reward_type: sharpe
+    net_arch: [1024, 512]
+
+  # Different algorithms
+  - agent_id: agent_SPY_1h_a2c_001
+    symbol: SPY
+    venue: IBKR
+    timeframe: 1h
+    algorithm: A2C
+    reward_type: sharpe
+
+  - agent_id: agent_BTCUSDT_1h_a2c_001
+    symbol: BTCUSDT
+    venue: BINANCE
+    timeframe: 1h
+    algorithm: A2C
+    reward_type: sharpe
+
+  # Different hyperparameters
+  - agent_id: agent_SPY_1h_explore_001
+    symbol: SPY
+    venue: IBKR
+    timeframe: 1h
+    reward_type: sharpe
+    ent_coef: 0.05  # More exploration
+
+  - agent_id: agent_SPY_1h_exploit_001
+    symbol: SPY
+    venue: IBKR
+    timeframe: 1h
+    reward_type: sharpe
+    ent_coef: 0.001  # Less exploration
+
+  - agent_id: agent_SPY_1h_long_001
+    symbol: SPY
+    venue: IBKR
+    timeframe: 1h
+    reward_type: sharpe
+    total_timesteps: 10000000  # Longer training
+
+  - agent_id: agent_SPY_1h_gamma_high_001
+    symbol: SPY
+    venue: IBKR
+    timeframe: 1h
+    reward_type: sharpe
+    gamma: 0.995  # Higher discount
+
+  - agent_id: agent_SPY_1h_gamma_low_001
+    symbol: SPY
+    venue: IBKR
+    timeframe: 1h
+    reward_type: sharpe
+    gamma: 0.95  # Lower discount
+
+# Note: This is a subset of the full 500 agents.
+# The full configuration would include more variations across:
+# - All instruments
+# - All timeframes
+# - All reward types
+# - Different hyperparameter combinations
+# - Different network architectures
