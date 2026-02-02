@@ -160,6 +160,76 @@ Historical record of all decisions made. Used for:
 - **Validations**:
   - mlops_engineer: pass (2/2 checks)
 
+
+### CHG-20260202-092130: 8 files changed: code (5 files)
+- **Date**: 2026-02-02 09:21
+- **Proposed By**: @quant_developer
+- **Validated By**: @quant_developer, @mlops_engineer
+- **Status**: AUTO-APPROVED
+- **Files**: .env.example, .roles/DECISIONS.md, .roles/DECISION_QUEUE.md, .roles/LESSONS_LEARNED.md, config/data_sources.py...
+- **Validations**:
+  - quant_developer: pass (2/2 checks)
+  - mlops_engineer: pass (2/2 checks)
+
+
+### CHG-20260202-093035: 1 files changed: code (1 files)
+- **Date**: 2026-02-02 09:30
+- **Proposed By**: @rl_engineer
+- **Validated By**: @rl_engineer
+- **Status**: AUTO-APPROVED
+- **Files**: scripts/load_eod_to_catalog.py
+- **Validations**:
+  - rl_engineer: pass (2/2 checks)
+
+
+### CHG-20260202-093317: 93 files changed: code (93 files)
+- **Date**: 2026-02-02 09:33
+- **Proposed By**: @quant_developer
+- **Validated By**: @quant_developer
+- **Status**: AUTO-APPROVED
+- **Files**: data/eod/0005_HK_1d.csv, data/eod/000660_KO_1d.csv, data/eod/003550_KO_1d.csv, data/eod/005380_KO_1d.csv, data/eod/005930_KO_1d.csv...
+- **Validations**:
+  - quant_developer: pass (2/2 checks)
+
+### D-012: Fix Environment Action Flow (L-007)
+- **Date**: 2026-02-02
+- **Decided By**: @rl_engineer (autonomous)
+- **Trigger**: L-007 bloqueante - Training genera 0 trades
+- **Choice**: Investigar y corregir `gym_env/nautilus_env.py`
+- **Scope**: Arquitectura de comunicación env.step() → GymTradingStrategy
+- **Priority**: CRITICAL - sin esto no hay training funcional
+
+---
+
+### D-011: Train Validation Test Agent
+- **Date**: 2026-02-02
+- **Decided By**: @rl_engineer (autonomous)
+- **Trigger**: test_agent_001 failed validation (0 trades, trained with only 100 steps)
+- **Choice**: Train new agent with 100K timesteps for pipeline validation test
+- **Rationale**:
+  - Config says 1M steps for production, but 100K sufficient for pipeline test
+  - DQ-003 allows local training for <10 agents
+  - Need to validate that training → validation flow works
+- **Config Applied**:
+  - Symbol: SPY.NASDAQ (has data in catalog)
+  - Algorithm: PPO
+  - Timesteps: 100,000 (test), then scale to 1M
+- **Expected Outcome**: Agent generates trades, passes or fails Filter 1 with real metrics
+- **Next Step**: If pipeline works, train batch of 10 agents with 1M steps each
+
+---
+
+
+### CHG-20260202-094804: 1 files changed: code (1 files)
+- **Date**: 2026-02-02 09:48
+- **Proposed By**: @rl_engineer
+- **Validated By**: @rl_engineer, @quant_developer
+- **Status**: AUTO-APPROVED
+- **Files**: gym_env/nautilus_env.py
+- **Validations**:
+  - rl_engineer: pass (2/2 checks)
+  - quant_developer: pass (2/2 checks)
+
 ## Template
 
 ```markdown

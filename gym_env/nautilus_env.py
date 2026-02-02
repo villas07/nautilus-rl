@@ -338,6 +338,13 @@ class NautilusBacktestEnv(gym.Env):
         self._returns: List[float] = []
         self._initial_equity: float = 0.0
 
+        # Data-driven stepping (fix for L-007)
+        self._bars_data: List[Bar] = []
+        self._current_bar_idx: int = 0
+        self._position: float = 0.0  # Current position size
+        self._cash: float = 0.0
+        self._entry_price: float = 0.0
+
         # Load catalog
         self._load_catalog()
 
@@ -435,48 +442,47 @@ class NautilusBacktestEnv(gym.Env):
         """
         Reset the environment.
 
-        Creates a new BacktestEngine and strategy for each episode.
+        Uses data-driven approach: loads bars into memory and steps through them.
+        This fixes L-007 where BacktestEngine.run() processed all bars at once.
         """
         super().reset(seed=seed)
 
         # Cleanup previous engine
         if self._engine is not None:
-            self._engine.dispose()
+            try:
+                self._engine.dispose()
+            except Exception:
+                pass
+        self._engine = None
 
-        # Create new engine
-        self._engine = self._create_engine()
-
-        # Create strategy config
-        strategy_config = StrategyConfig(strategy_id="GYM-001")
-
-        # Create strategy params
-        strategy_params = GymStrategyParams(
-            instrument_id=self.config.instrument_id,
-            bar_type=self.config.bar_type,
-            venue=self.config.venue,
-            trade_size=self.config.trade_size,
-            lookback_period=self.config.lookback_period,
-            currency=self.config.currency,
-        )
-
-        # Create and add strategy
-        self._strategy = GymTradingStrategy(config=strategy_config, params=strategy_params)
-        self._engine.add_strategy(self._strategy)
+        # Load bar data directly from catalog
+        self._bars_data = []
+        if self._catalog:
+            instrument_id = InstrumentId.from_str(self.config.instrument_id)
+            bars = self._catalog.bars(
+                instrument_ids=[str(instrument_id)],
+                start=pd.Timestamp(self.config.start_date),
+                end=pd.Timestamp(self.config.end_date),
+            )
+            if bars:
+                self._bars_data = list(bars)
+                logger.info(f"Loaded {len(self._bars_data)} bars for episode")
 
         # Reset episode state
         self._step_count = 0
+        self._current_bar_idx = self.config.lookback_period  # Start after lookback
         self._returns = []
         self._initial_equity = self.config.initial_capital
         self._prev_equity = self._initial_equity
+        self._cash = self._initial_equity
+        self._position = 0.0
+        self._entry_price = 0.0
 
         # Reset reward calculator
         self.reward_calculator.reset()
 
-        # Run engine to first bar
-        self._engine.run()
-
         # Get initial observation
-        observation = self._get_observation()
+        observation = self._get_observation_direct()
 
         info = {
             "equity": self._initial_equity,
@@ -491,7 +497,7 @@ class NautilusBacktestEnv(gym.Env):
         action: Any,
     ) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
         """
-        Execute one step.
+        Execute one step using data-driven approach.
 
         Args:
             action: Trading action (0=hold, 1=buy, 2=sell).
@@ -510,16 +516,25 @@ class NautilusBacktestEnv(gym.Env):
         else:
             discrete_action = int(action)
 
-        # Set action on strategy
-        self._strategy.set_action(discrete_action)
+        # Check if we have more bars
+        if self._current_bar_idx >= len(self._bars_data):
+            # Episode done - no more data
+            observation = self._get_observation_direct()
+            return observation, 0.0, True, False, {"equity": self._get_equity(), "position": self._position, "step": self._step_count}
 
-        # Run engine for one bar
-        # Note: In a real implementation, you'd use engine.advance() or similar
-        # For now, we simulate by letting the engine process events
+        # Get current bar
+        current_bar = self._bars_data[self._current_bar_idx]
+        current_price = float(current_bar.close)
 
-        # Get state
-        state = self._strategy.get_state()
-        current_equity = state["equity"] if state["equity"] > 0 else self._prev_equity
+        # Execute action
+        self._execute_action_direct(discrete_action, current_price)
+
+        # Advance to next bar
+        self._current_bar_idx += 1
+        self._step_count += 1
+
+        # Calculate equity
+        current_equity = self._get_equity()
 
         # Calculate return
         if self._prev_equity > 0:
@@ -533,30 +548,124 @@ class NautilusBacktestEnv(gym.Env):
             portfolio_value=current_equity,
             prev_portfolio_value=self._prev_equity,
             returns=self._returns,
-            position=state["position"],
+            position=self._position,
         )
 
         # Update state
         self._prev_equity = current_equity
-        self._step_count += 1
 
         # Check termination
         terminated = self._check_terminated(current_equity)
-        truncated = self._step_count >= self.config.max_episode_steps
+        truncated = (
+            self._step_count >= self.config.max_episode_steps or
+            self._current_bar_idx >= len(self._bars_data)
+        )
 
         # Get observation
-        observation = self._get_observation()
+        observation = self._get_observation_direct()
 
         # Build info
         info = {
             "equity": current_equity,
-            "position": state["position"],
+            "position": self._position,
             "step": self._step_count,
-            "total_return": (current_equity - self._initial_equity) / self._initial_equity,
+            "total_return": (current_equity - self._initial_equity) / self._initial_equity if self._initial_equity > 0 else 0,
             "sharpe": self._calculate_sharpe(),
+            "price": current_price,
         }
 
         return observation, reward, terminated, truncated, info
+
+    def _execute_action_direct(self, action: int, price: float) -> None:
+        """Execute trading action directly (data-driven approach)."""
+        trade_size = self.config.trade_size
+
+        if action == 1:  # Buy
+            if self._position <= 0:
+                # Close short if any, then go long
+                if self._position < 0:
+                    # Close short
+                    pnl = (self._entry_price - price) * abs(self._position)
+                    self._cash += pnl + (abs(self._position) * self._entry_price)
+                    self._position = 0
+
+                # Open long
+                cost = trade_size * price
+                if self._cash >= cost:
+                    self._cash -= cost
+                    self._position = trade_size
+                    self._entry_price = price
+
+        elif action == 2:  # Sell
+            if self._position >= 0:
+                # Close long if any, then go short
+                if self._position > 0:
+                    # Close long
+                    pnl = (price - self._entry_price) * self._position
+                    self._cash += pnl + (self._position * self._entry_price)
+                    self._position = 0
+
+                # Open short
+                margin = trade_size * price
+                if self._cash >= margin:
+                    self._cash -= margin  # Margin for short
+                    self._position = -trade_size
+                    self._entry_price = price
+
+        # action == 0: Hold - do nothing
+
+    def _get_equity(self) -> float:
+        """Calculate current equity."""
+        if self._current_bar_idx >= len(self._bars_data) or self._current_bar_idx < 0:
+            return self._cash
+
+        current_bar = self._bars_data[min(self._current_bar_idx, len(self._bars_data) - 1)]
+        current_price = float(current_bar.close)
+
+        if self._position > 0:
+            # Long position value
+            unrealized_pnl = (current_price - self._entry_price) * self._position
+            return self._cash + (self._position * self._entry_price) + unrealized_pnl
+        elif self._position < 0:
+            # Short position value
+            unrealized_pnl = (self._entry_price - current_price) * abs(self._position)
+            return self._cash + (abs(self._position) * self._entry_price) + unrealized_pnl
+        else:
+            return self._cash
+
+    def _get_observation_direct(self) -> np.ndarray:
+        """Build observation directly from bar data."""
+        if not self._bars_data or self._current_bar_idx < self.config.lookback_period:
+            return np.zeros(self.config.observation_features, dtype=np.float32)
+
+        # Get lookback bars
+        start_idx = max(0, self._current_bar_idx - self.config.lookback_period)
+        end_idx = self._current_bar_idx
+        bars_slice = self._bars_data[start_idx:end_idx]
+
+        if not bars_slice:
+            return np.zeros(self.config.observation_features, dtype=np.float32)
+
+        # Convert bars to DataFrame
+        bars_data = []
+        for bar in bars_slice:
+            bars_data.append({
+                "timestamp": bar.ts_event,
+                "open": float(bar.open),
+                "high": float(bar.high),
+                "low": float(bar.low),
+                "close": float(bar.close),
+                "volume": float(bar.volume),
+            })
+
+        df = pd.DataFrame(bars_data)
+
+        return self.observation_builder.build(
+            data=df,
+            position=self._position,
+            portfolio_value=self._get_equity(),
+            initial_capital=self._initial_equity,
+        )
 
     def _get_observation(self) -> np.ndarray:
         """Build observation from strategy state."""

@@ -187,20 +187,24 @@ class BasicMetricsFilter:
         import sys
         sys.path.insert(0, str(Path(__file__).parent.parent))
 
-        from gym_env.nautilus_env import NautilusGymEnv, EnvConfig
+        from gym_env.nautilus_env import NautilusBacktestEnv, NautilusEnvConfig
 
         # Get agent config to determine symbol/venue
         agent_config = self._load_agent_config(agent_id)
 
+        # Build instrument_id from symbol and venue
+        symbol = agent_config.get("symbol", "SPY")
+        venue = agent_config.get("venue", "NASDAQ")
+        instrument_id = f"{symbol}.{venue}"
+
         # Create environment
-        env_config = EnvConfig(
-            symbol=agent_config.get("symbol", "SPY"),
-            venue=agent_config.get("venue", "IBKR"),
-            timeframe=agent_config.get("timeframe", "1h"),
+        env_config = NautilusEnvConfig(
+            instrument_id=instrument_id,
+            venue=venue,
             catalog_path=self.catalog_path,
         )
 
-        env = NautilusGymEnv(config=env_config)
+        env = NautilusBacktestEnv(config=env_config)
 
         # Run multiple episodes
         all_returns = []

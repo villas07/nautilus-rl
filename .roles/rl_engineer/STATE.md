@@ -22,7 +22,8 @@ Phase 5: Validation 5 Filters
 - [ ] filter_5_paper.py - Paper trading validation
 
 ## Blockers
-- **DQ-001**: Need decision on validation thresholds (waiting @quant_developer input)
+- **CRITICAL L-007**: Environment-Strategy action flow broken - no trades execute
+- ~~**DQ-001**: Validation thresholds~~ → RESOLVED in autonomous_config.yaml
 
 ## Next Actions
 1. Implement filter_1_basic.py with placeholder thresholds

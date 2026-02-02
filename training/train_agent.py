@@ -466,12 +466,24 @@ def main():
     parser.add_argument("--config", type=str, help="Path to YAML config")
     parser.add_argument("--algorithm", type=str, default="PPO")
     parser.add_argument("--timesteps", type=int, default=5_000_000)
-    parser.add_argument("--output-dir", type=str, default="/app/models")
+    parser.add_argument("--output-dir", type=str, default=None)
+    parser.add_argument("--catalog-path", type=str, default=None)
+    parser.add_argument("--log-dir", type=str, default=None)
 
     args = parser.parse_args()
 
+    # Resolve paths relative to project root
+    project_root = Path(__file__).parent.parent
+    output_dir = args.output_dir or str(project_root / "models")
+    catalog_path = args.catalog_path or str(project_root / "data" / "catalog")
+    log_dir = args.log_dir or str(project_root / "logs")
+
     if args.config:
         config = TrainingConfig.from_yaml(args.config)
+        # Override paths from CLI if provided
+        config.output_dir = output_dir
+        config.catalog_path = catalog_path
+        config.log_dir = log_dir
     else:
         config = TrainingConfig(
             agent_id=args.agent_id,
@@ -479,7 +491,9 @@ def main():
             venue=args.venue,
             algorithm=args.algorithm,
             total_timesteps=args.timesteps,
-            output_dir=args.output_dir,
+            output_dir=output_dir,
+            catalog_path=catalog_path,
+            log_dir=log_dir,
         )
 
     results = train_single_agent(

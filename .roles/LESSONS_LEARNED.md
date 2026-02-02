@@ -97,6 +97,25 @@ Continuous improvement through documented learnings.
 - **Action Taken**: Auto-reverted
 - **Prevention**: Review validation criteria before proposing similar changes
 
+### L-007: Environment-Strategy Action Flow Broken
+- **Date**: 2026-02-02
+- **Discovered By**: @rl_engineer (autonomous validation D-011)
+- **Problem**: NautilusBacktestEnv.step() doesn't route RL actions to GymTradingStrategy
+- **Symptoms**:
+  - Backtest completes with Total orders: 0
+  - 250 iterations (bars) process instantly (~100ms)
+  - No PPO training metrics appear
+  - Agent never generates trades
+- **Root Cause**: The GymTradingStrategy receives bar updates but never receives action signals from the RL agent. The step() method advances the backtest but doesn't execute trades based on actions.
+- **Investigation Needed**:
+  1. How does step() communicate actions to the strategy?
+  2. Does on_bar() in GymTradingStrategy check for external action signals?
+  3. Is there a missing callback or event mechanism?
+- **Files Affected**: `gym_env/nautilus_env.py` (NautilusBacktestEnv class)
+- **Status**: OPEN - requires architecture review
+
+---
+
 ## Template for New Lessons
 
 ```markdown
