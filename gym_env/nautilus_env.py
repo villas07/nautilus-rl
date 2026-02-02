@@ -83,7 +83,9 @@ class NautilusEnvConfig:
 
     # Action settings
     action_type: str = "discrete"  # discrete or continuous
-    trade_size: float = 100.0  # Units per trade
+    trade_size: float = 100.0  # Units per trade (fallback if position_pct not used)
+    position_pct: float = 0.10  # Position size as % of equity (10% default)
+    max_position_pct: float = 0.30  # Max total position as % of equity
 
     # Reward settings
     reward_type: str = "sharpe"
@@ -344,6 +346,7 @@ class NautilusBacktestEnv(gym.Env):
         self._position: float = 0.0  # Current position size
         self._cash: float = 0.0
         self._entry_price: float = 0.0
+        self._peak_equity: float = 0.0  # High watermark for drawdown calculation
 
         # Load catalog
         self._load_catalog()
@@ -474,6 +477,7 @@ class NautilusBacktestEnv(gym.Env):
         self._returns = []
         self._initial_equity = self.config.initial_capital
         self._prev_equity = self._initial_equity
+        self._peak_equity = self._initial_equity  # Reset high watermark
         self._cash = self._initial_equity
         self._position = 0.0
         self._entry_price = 0.0
@@ -553,6 +557,7 @@ class NautilusBacktestEnv(gym.Env):
 
         # Update state
         self._prev_equity = current_equity
+        self._peak_equity = max(self._peak_equity, current_equity)  # Track high watermark
 
         # Check termination
         terminated = self._check_terminated(current_equity)
@@ -578,7 +583,14 @@ class NautilusBacktestEnv(gym.Env):
 
     def _execute_action_direct(self, action: int, price: float) -> None:
         """Execute trading action directly (data-driven approach)."""
-        trade_size = self.config.trade_size
+        # Calculate position size based on % of equity
+        current_equity = self._get_equity()
+        position_value = current_equity * self.config.position_pct
+        trade_size = max(1.0, position_value / price)  # At least 1 unit
+
+        # Check max position limit
+        max_position_value = current_equity * self.config.max_position_pct
+        max_position_size = max_position_value / price
 
         if action == 1:  # Buy
             if self._position <= 0:
@@ -589,7 +601,8 @@ class NautilusBacktestEnv(gym.Env):
                     self._cash += pnl + (abs(self._position) * self._entry_price)
                     self._position = 0
 
-                # Open long
+                # Open long (respecting max position)
+                trade_size = min(trade_size, max_position_size)
                 cost = trade_size * price
                 if self._cash >= cost:
                     self._cash -= cost
@@ -605,7 +618,8 @@ class NautilusBacktestEnv(gym.Env):
                     self._cash += pnl + (self._position * self._entry_price)
                     self._position = 0
 
-                # Open short
+                # Open short (respecting max position)
+                trade_size = min(trade_size, max_position_size)
                 margin = trade_size * price
                 if self._cash >= margin:
                     self._cash -= margin  # Margin for short
@@ -701,10 +715,9 @@ class NautilusBacktestEnv(gym.Env):
         if equity <= 0:
             return True
 
-        # Max drawdown
-        peak = max(self._initial_equity, equity)
-        drawdown = (peak - equity) / peak if peak > 0 else 0
-        if drawdown > 0.20:  # 20% max drawdown
+        # Max drawdown from peak (high watermark)
+        drawdown = (self._peak_equity - equity) / self._peak_equity if self._peak_equity > 0 else 0
+        if drawdown > 0.15:  # 15% max drawdown (matches Filter 1 threshold)
             return True
 
         return False
