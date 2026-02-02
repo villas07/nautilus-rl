@@ -5,6 +5,10 @@
 > - Validacion automatica entre roles
 > - Reglas inmutables en `.rules/IMMUTABLE_RULES.md`
 > - Solo alertas CRITICAS van a Telegram
+>
+> **Decisiones internas vs externas:**
+> - Las decisiones internas (documentar, loguear, actualizar estado) se ejecutan automáticamente
+> - Solo consultar al usuario para recursos externos (API keys, capital, infraestructura)
 
 ## [CRITICAL] MANDATORY: Session Start Protocol
 
