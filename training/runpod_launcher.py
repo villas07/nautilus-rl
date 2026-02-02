@@ -82,6 +82,9 @@ class RunPodConfig:
     workspace: str = "/workspace"
     data_volume: str = "/data"
 
+    # Data download URL (Hetzner VPS)
+    data_url: str = "http://46.225.11.110:8080/catalog.tar.gz"
+
     # Hourly costs by GPU type (from RunPod 2026-02-02)
     GPU_COSTS = {
         "RTX4090": 0.59,      # High availability - RECOMMENDED
@@ -227,17 +230,32 @@ export MLFLOW_TRACKING_URI="${{MLFLOW_TRACKING_URI:-http://host.docker.internal:
 # Install dependencies
 pip install --quiet nautilus_trader stable-baselines3 gymnasium mlflow structlog pyyaml
 
-# Navigate to workspace
-cd {self.config.workspace}/nautilus-agents
-
-# Verify data catalog exists
-if [ ! -d "{self.config.data_volume}/catalog" ]; then
-    echo "ERROR: Data catalog not found at {self.config.data_volume}/catalog"
-    exit 1
+# Download data catalog if not exists
+DATA_DIR="{self.config.workspace}/data/catalog"
+if [ ! -d "$DATA_DIR" ]; then
+    echo "Downloading data catalog from Hetzner VPS..."
+    mkdir -p {self.config.workspace}/data
+    cd {self.config.workspace}/data
+    curl -L -o catalog.tar.gz {self.config.data_url}
+    echo "Extracting..."
+    tar -xzf catalog.tar.gz
+    rm catalog.tar.gz
+    echo "Data catalog ready: $(du -sh $DATA_DIR)"
 fi
 
+# Clone/update repo
+if [ ! -d "{self.config.workspace}/nautilus-agents" ]; then
+    echo "Cloning nautilus-agents repo..."
+    cd {self.config.workspace}
+    git clone https://github.com/tu-usuario/nautilus-agents.git || echo "Clone failed, using local"
+fi
+
+# Navigate to workspace
+cd {self.config.workspace}/nautilus-agents 2>/dev/null || cd {self.config.workspace}
+
 # Create symlink to data
-ln -sf {self.config.data_volume}/catalog data/catalog
+mkdir -p data
+ln -sf {self.config.workspace}/data/catalog data/catalog
 
 # Train each agent in parallel batches
 PIDS=()
