@@ -112,6 +112,22 @@ Historical record of all decisions made. Used for:
   - Auto-shutdown after 2 hours
 - **Auto-action**: System switches infrastructure automatically
 
+### D-010: Add EOD Historical Data Source
+- **Date**: 2026-02-02
+- **Decision Queue**: DQ-004
+- **Evaluated By**: @quant_developer, @rl_engineer
+- **Choice**: Add EOD Historical Data API for Europe and Asia markets
+- **Rationale**:
+  - Expands data coverage beyond US markets
+  - Europe: LSE, XETRA, Euronext, SIX, BME, etc.
+  - Asia: TSE, HKEX, SSE, SZSE, NSE, KRX, etc.
+  - 70+ exchanges, 150,000+ tickers
+  - Enables cross-market validation for RL agents
+- **Cost**: ~$80/month
+- **Implementation**: `data/adapters/eod_adapter.py`
+- **Config**: EOD_API_KEY in .env
+- **Status**: APPROVED
+
 ---
 
 

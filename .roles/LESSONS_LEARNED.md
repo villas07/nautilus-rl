@@ -84,6 +84,19 @@ Continuous improvement through documented learnings.
 - **Action Taken**: Auto-reverted
 - **Prevention**: Review validation criteria before proposing similar changes
 
+
+### L-AUTO-CHG-20260202-091916: Change Rejected by Governance
+- **Date**: 2026-02-02
+- **Change ID**: CHG-20260202-091916
+- **Proposed By**: @quant_developer
+- **Description**: 6 files changed: code (3 files)
+- **Failed Validations**:
+  - **quant_developer**: NautilusTrader imports OK, NautilusTrader compatibility verified, Unit tests failed: C:\Users\PcVIP\AppData\Local\Programs\Python\Python311\python.exe: No module named pytest
+
+    - FAILED: unit_tests_pass
+- **Action Taken**: Auto-reverted
+- **Prevention**: Review validation criteria before proposing similar changes
+
 ## Template for New Lessons
 
 ```markdown

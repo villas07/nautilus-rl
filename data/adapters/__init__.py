@@ -12,6 +12,7 @@ FREE Sources (No API key required):
 
 API Key Required:
     - AlphaVantageAdapter: Stocks, Forex (25/day free)
+    - EODHistoricalDataAdapter: Europe/Asia stocks (~$80/mo)
     - DatabentoAdapter: Premium futures/stocks
     - PolygonAdapter: Stocks (5/min free tier)
 
@@ -33,6 +34,7 @@ from data.adapters.fred_adapter import FREDAdapter
 
 # API key adapters
 from data.adapters.alphavantage_adapter import AlphaVantageAdapter
+from data.adapters.eod_adapter import EODHistoricalDataAdapter
 
 __all__ = [
     # Legacy
@@ -46,4 +48,5 @@ __all__ = [
     "FREDAdapter",
     # API key required
     "AlphaVantageAdapter",
+    "EODHistoricalDataAdapter",
 ]

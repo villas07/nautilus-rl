@@ -26,6 +26,8 @@ class DataSource(str, Enum):
     IBKR = "ibkr"
     POLYGON = "polygon"
     TIMESCALE = "timescale"  # Local TimescaleDB cache
+    EOD = "eod"  # EOD Historical Data - Europe/Asia
+    YAHOO = "yahoo"  # Yahoo Finance - Free US data
 
 
 class DataType(str, Enum):
@@ -196,6 +198,38 @@ class PolygonConfig:
 
 
 @dataclass
+class EODHistoricalConfig:
+    """EOD Historical Data configuration.
+
+    Professional data source for global markets:
+    - Europe: LSE, XETRA, Euronext, SIX, BME, etc.
+    - Asia: TSE, HKEX, SSE, SZSE, NSE, KRX, etc.
+    - 70+ exchanges, 150,000+ tickers
+    - Cost: ~$80/month
+    """
+
+    api_key: str = ""
+    enabled: bool = False
+
+    european_exchanges: List[str] = field(default_factory=lambda: [
+        "LSE", "XETRA", "PA", "AS", "MI", "MC", "SW",
+    ])
+
+    asian_exchanges: List[str] = field(default_factory=lambda: [
+        "TSE", "HK", "SS", "NSE", "KO", "SG",
+    ])
+
+    @classmethod
+    def from_env(cls) -> "EODHistoricalConfig":
+        """Create config from environment variables."""
+        api_key = os.getenv("EOD_API_KEY", "")
+        return cls(
+            api_key=api_key,
+            enabled=bool(api_key),
+        )
+
+
+@dataclass
 class DataSourcesConfig:
     """Combined data sources configuration."""
 
@@ -203,6 +237,7 @@ class DataSourcesConfig:
     tardis: TardisConfig = field(default_factory=TardisConfig.from_env)
     binance: BinanceDataConfig = field(default_factory=BinanceDataConfig.from_env)
     polygon: PolygonConfig = field(default_factory=PolygonConfig.from_env)
+    eod: EODHistoricalConfig = field(default_factory=EODHistoricalConfig.from_env)
 
     # TimescaleDB for centralized storage
     timescale_host: str = ""
@@ -222,6 +257,7 @@ class DataSourcesConfig:
             tardis=TardisConfig.from_env(),
             binance=BinanceDataConfig.from_env(),
             polygon=PolygonConfig.from_env(),
+            eod=EODHistoricalConfig.from_env(),
             timescale_host=os.getenv("TIMESCALE_HOST", "localhost"),
             timescale_port=int(os.getenv("TIMESCALE_PORT", "5432")),
             timescale_db=os.getenv("TIMESCALE_DB", "deskgrade"),
@@ -242,6 +278,8 @@ class DataSourcesConfig:
             enabled.append(DataSource.BINANCE)
         if self.polygon.enabled:
             enabled.append(DataSource.POLYGON)
+        if self.eod.enabled:
+            enabled.append(DataSource.EOD)
 
         return enabled
 

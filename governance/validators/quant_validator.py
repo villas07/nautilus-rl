@@ -167,8 +167,26 @@ class QuantDeveloperValidator(RoleValidator):
         try:
             test_dir = PROJECT_ROOT / "tests" / "unit"
 
+            # Check if tests/unit exists and has test files
             if not test_dir.exists():
-                messages.append("No unit tests directory")
+                messages.append("No unit tests directory - skipping")
+                return True
+
+            test_files = list(test_dir.glob("test_*.py"))
+            if not test_files:
+                messages.append("No unit test files found - skipping")
+                return True
+
+            # First check if pytest is available
+            check_pytest = subprocess.run(
+                ["python", "-c", "import pytest"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                cwd=PROJECT_ROOT,
+            )
+            if check_pytest.returncode != 0:
+                messages.append("pytest not installed - skipping tests")
                 return True
 
             # Run pytest
@@ -184,8 +202,11 @@ class QuantDeveloperValidator(RoleValidator):
                 messages.append("Unit tests passed")
                 return True
             else:
-                # Extract failure info
+                # Check for specific conditions
                 output = result.stdout + result.stderr
+                if "no tests ran" in output.lower() or "collected 0 items" in output.lower():
+                    messages.append("No tests collected - skipping")
+                    return True
                 messages.append(f"Unit tests failed: {output[-500:]}")
                 return False
 

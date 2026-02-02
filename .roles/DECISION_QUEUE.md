@@ -26,7 +26,18 @@
 
 ## PENDING (None)
 
-_No hay decisiones pendientes. El sistema opera autónomamente._
+_No hay decisiones pendientes. El sistema opera autonomamente._
+
+---
+
+## RESOLVED (Recent)
+
+### ~~DQ-004: Add EOD Historical Data Source~~ -> RESOLVED
+- **Proposed By**: User request
+- **Date**: 2026-02-02
+- **Resolution**: APPROVED by @quant_developer and @rl_engineer
+- **Implementation**: `data/adapters/eod_adapter.py`
+- **Decision ID**: D-010
 
 ---
 
