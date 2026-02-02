@@ -477,7 +477,7 @@ class GovernanceEngine:
         self._verify_rules_integrity()
 
         confirmation = f"""
-✅ GOVERNANCE ENGINE ACTIVE
+[OK] GOVERNANCE ENGINE ACTIVE
 
 Session started: {datetime.now().isoformat()}
 Rules file verified: {RULES_FILE.name}

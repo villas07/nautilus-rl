@@ -16,10 +16,10 @@ python -m governance.ci_cd --staged-only --report
 RESULT=$?
 
 if [ $RESULT -eq 0 ]; then
-    echo "✅ Governance validation PASSED"
+    echo "[PASS] Governance validation PASSED"
     exit 0
 else
-    echo "❌ Governance validation FAILED"
+    echo "[FAIL] Governance validation FAILED"
     echo ""
     echo "Changes have been auto-reverted."
     echo "Check .roles/LESSONS_LEARNED.md for details."

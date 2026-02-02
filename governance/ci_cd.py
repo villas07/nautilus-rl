@@ -238,16 +238,16 @@ class CICDPipeline:
         lines.append("Validations:")
 
         for v in change.validations:
-            status = "✅ PASS" if v.passed() else "❌ FAIL"
+            status = "[PASS]" if v.passed() else "[FAIL]"
             lines.append(f"  {v.validator}: {status}")
 
             for check, passed in v.checks.items():
-                icon = "✓" if passed else "✗"
+                icon = "[+]" if passed else "[-]"
                 lines.append(f"    {icon} {check}")
 
             if v.messages:
                 for msg in v.messages:
-                    lines.append(f"    → {msg}")
+                    lines.append(f"    -> {msg}")
 
         lines.append("=" * 60)
 

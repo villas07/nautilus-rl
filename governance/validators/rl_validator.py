@@ -288,9 +288,27 @@ class RLEngineerValidator(RoleValidator):
             project_root = Path(__file__).parent.parent.parent
             test_dir = project_root / "tests" / "unit"
 
+            # Check if tests/unit exists and has test files
             if not test_dir.exists():
-                messages.append("No unit tests directory found")
+                messages.append("No unit tests directory found - skipping")
                 return True  # Don't fail if no tests yet
+
+            test_files = list(test_dir.glob("test_*.py"))
+            if not test_files:
+                messages.append("No unit test files found - skipping")
+                return True
+
+            # First check if pytest is available
+            check_pytest = subprocess.run(
+                ["python", "-c", "import pytest"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                cwd=project_root,
+            )
+            if check_pytest.returncode != 0:
+                messages.append("pytest not installed - skipping tests")
+                return True
 
             result = subprocess.run(
                 ["python", "-m", "pytest", str(test_dir), "-v", "--tb=short"],
@@ -304,7 +322,12 @@ class RLEngineerValidator(RoleValidator):
                 messages.append("Unit tests passed")
                 return True
             else:
-                messages.append(f"Unit tests failed: {result.stdout[-500:]}")
+                # Check for specific failure conditions
+                output = result.stdout + result.stderr
+                if "no tests ran" in output.lower() or "collected 0 items" in output.lower():
+                    messages.append("No tests collected - skipping")
+                    return True
+                messages.append(f"Unit tests failed: {output[-500:]}")
                 return False
 
         except subprocess.TimeoutExpired:

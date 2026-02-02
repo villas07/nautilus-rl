@@ -40,7 +40,7 @@ def install_hooks():
         st = os.stat(dst)
         os.chmod(dst, st.st_mode | stat.S_IEXEC)
 
-        print(f"✅ Installed pre-commit hook to {dst}")
+        print(f"[OK] Installed pre-commit hook to {dst}")
         return True
     else:
         print(f"Warning: {src} not found")
