@@ -125,19 +125,20 @@ class DiversityFilter:
         import sys
         sys.path.insert(0, str(Path(__file__).parent.parent))
 
-        from gym_env.nautilus_env import NautilusGymEnv, EnvConfig
+        from gym_env.nautilus_env import NautilusBacktestEnv, NautilusEnvConfig
 
         agent_config = self._load_agent_config(agent_id)
+        symbol = agent_config.get("symbol", "SPY")
+        venue = agent_config.get("venue", "NASDAQ")
+        instrument_id = f"{symbol}.{venue}"
 
-        env_config = EnvConfig(
-            symbol=agent_config.get("symbol", "SPY"),
-            venue=agent_config.get("venue", "IBKR"),
-            timeframe=agent_config.get("timeframe", "1h"),
+        env_config = NautilusEnvConfig(
+            instrument_id=instrument_id,
+            venue=venue,
             catalog_path=self.catalog_path,
-            max_episode_steps=500,  # Use consistent length
         )
 
-        env = NautilusGymEnv(config=env_config)
+        env = NautilusBacktestEnv(config=env_config)
 
         # Run single episode to get signals
         obs, _ = env.reset(seed=42)  # Fixed seed for consistency

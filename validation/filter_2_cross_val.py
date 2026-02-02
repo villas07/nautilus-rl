@@ -175,16 +175,16 @@ class CrossValidationFilter:
         import sys
         sys.path.insert(0, str(Path(__file__).parent.parent))
 
-        from gym_env.nautilus_env import NautilusGymEnv, EnvConfig
+        from gym_env.nautilus_env import NautilusBacktestEnv, NautilusEnvConfig
 
-        env_config = EnvConfig(
-            symbol=symbol,
+        instrument_id = f"{symbol}.{venue}"
+        env_config = NautilusEnvConfig(
+            instrument_id=instrument_id,
             venue=venue,
-            timeframe=timeframe,
             catalog_path=self.catalog_path,
         )
 
-        env = NautilusGymEnv(config=env_config)
+        env = NautilusBacktestEnv(config=env_config)
 
         # Run episodes
         all_returns = []

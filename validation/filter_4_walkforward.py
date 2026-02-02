@@ -150,32 +150,20 @@ class WalkForwardFilter:
         import sys
         sys.path.insert(0, str(Path(__file__).parent.parent))
 
-        from gym_env.nautilus_env import NautilusGymEnv, EnvConfig
-        from data.adapters.timescale_adapter import TimescaleAdapter
+        from gym_env.nautilus_env import NautilusBacktestEnv, NautilusEnvConfig
 
-        # Load data for the specific period
-        adapter = TimescaleAdapter()
-        df = adapter.fetch_bars(
-            symbol=agent_config.get("symbol", "SPY"),
-            timeframe=agent_config.get("timeframe", "1h"),
-            start_date=start_date,
-            end_date=end_date,
-        )
-        adapter.close()
+        symbol = agent_config.get("symbol", "SPY")
+        venue = agent_config.get("venue", "NASDAQ")
+        instrument_id = f"{symbol}.{venue}"
 
-        if df.empty:
-            raise ValueError(f"No data for period {start_date} to {end_date}")
-
-        # Create environment with this data
-        env_config = EnvConfig(
-            symbol=agent_config.get("symbol", "SPY"),
-            venue=agent_config.get("venue", "IBKR"),
-            timeframe=agent_config.get("timeframe", "1h"),
+        # Create environment - it will load data from catalog
+        env_config = NautilusEnvConfig(
+            instrument_id=instrument_id,
+            venue=venue,
             catalog_path=self.catalog_path,
-            max_episode_steps=len(df) - 25,  # Leave room for lookback
         )
 
-        env = NautilusGymEnv(config=env_config, data=df)
+        env = NautilusBacktestEnv(config=env_config)
 
         # Run episodes
         all_returns = []
