@@ -151,6 +151,54 @@ alerts:
       - models_performance
 
 # =============================================================================
+# PRIORITIZATION - Orden automático de tareas
+# =============================================================================
+prioritization:
+  # Orden de prioridad (1 = más alta)
+  priority_order:
+    1: security_risk     # Seguridad y gestión de riesgo SIEMPRE primero
+    2: infrastructure    # Infraestructura y estabilidad del sistema
+    3: features          # Nuevas funcionalidades y mejoras
+
+  # Categorías de tareas
+  categories:
+    security_risk:
+      description: "Circuit breakers, drawdown limits, position sizing, validación"
+      examples:
+        - "Fix drawdown calculation"
+        - "Add stop loss"
+        - "Circuit breaker triggered"
+        - "Model validation failed"
+      auto_escalate: true  # Siempre escala a nivel crítico si hay problemas
+
+    infrastructure:
+      description: "Data pipeline, broker connections, monitoring, backups"
+      examples:
+        - "Database connection failed"
+        - "Broker disconnected"
+        - "Data staleness detected"
+        - "Grafana dashboard broken"
+      auto_escalate: false
+
+    features:
+      description: "Nuevos modelos, estrategias, optimizaciones no críticas"
+      examples:
+        - "Train new agent"
+        - "Add new symbol"
+        - "Optimize hyperparameters"
+        - "Improve reward function"
+      auto_escalate: false
+
+  # Reglas de interrución
+  interrupt_rules:
+    # Una tarea de mayor prioridad puede interrumpir una de menor
+    allow_interruption: true
+    # Guardar estado antes de interrumpir
+    save_state_before_interrupt: true
+    # Log de interrupciones
+    log_interruptions: true
+
+# =============================================================================
 # AUTONOMOUS DECISIONS - Reglas para auto-gestión
 # =============================================================================
 autonomous_rules:

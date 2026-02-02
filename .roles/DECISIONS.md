@@ -254,6 +254,142 @@ Historical record of all decisions made. Used for:
   - rl_engineer: pass (2/2 checks)
   - quant_developer: pass (2/2 checks)
 
+
+### CHG-20260202-095835: 2 files changed: infra (1 files)
+- **Date**: 2026-02-02 09:58
+- **Proposed By**: @mlops_engineer
+- **Validated By**: @mlops_engineer
+- **Status**: AUTO-APPROVED
+- **Files**: .roles/DECISIONS.md, .roles/rl_engineer/STATE.md
+- **Validations**:
+  - mlops_engineer: pass (4/4 checks)
+
+
+### CHG-20260202-095901: 2 files changed: infra (1 files)
+- **Date**: 2026-02-02 09:59
+- **Proposed By**: @mlops_engineer
+- **Validated By**: @mlops_engineer
+- **Status**: AUTO-APPROVED
+- **Files**: .roles/DECISIONS.md, .roles/rl_engineer/STATE.md
+- **Validations**:
+  - mlops_engineer: pass (4/4 checks)
+
+
+### CHG-20260202-100021: 1 files changed: code (1 files)
+- **Date**: 2026-02-02 10:00
+- **Proposed By**: @rl_engineer
+- **Validated By**: @rl_engineer
+- **Status**: AUTO-APPROVED
+- **Files**: CLAUDE.md
+- **Validations**:
+  - rl_engineer: pass (2/2 checks)
+
+
+### CHG-20260202-100030: 1 files changed: code (1 files)
+- **Date**: 2026-02-02 10:00
+- **Proposed By**: @rl_engineer
+- **Validated By**: @rl_engineer
+- **Status**: AUTO-APPROVED
+- **Files**: CLAUDE.md
+- **Validations**:
+  - rl_engineer: pass (2/2 checks)
+
+
+### CHG-20260202-100231: 3 files changed: code (3 files)
+- **Date**: 2026-02-02 10:02
+- **Proposed By**: @rl_engineer
+- **Validated By**: @rl_engineer
+- **Status**: AUTO-APPROVED
+- **Files**: validation/filter_2_cross_val.py, validation/filter_3_diversity.py, validation/filter_4_walkforward.py
+- **Validations**:
+  - rl_engineer: pass (2/2 checks)
+
+
+### CHG-20260202-100256: 3 files changed: code (3 files)
+- **Date**: 2026-02-02 10:02
+- **Proposed By**: @rl_engineer
+- **Validated By**: @rl_engineer
+- **Status**: AUTO-APPROVED
+- **Files**: validation/filter_2_cross_val.py, validation/filter_3_diversity.py, validation/filter_4_walkforward.py
+- **Validations**:
+  - rl_engineer: pass (2/2 checks)
+
+
+### CHG-20260202-101138: 1 files changed: code (1 files)
+- **Date**: 2026-02-02 10:11
+- **Proposed By**: @rl_engineer
+- **Validated By**: @rl_engineer
+- **Status**: AUTO-APPROVED
+- **Files**: validation/run_validation.py
+- **Validations**:
+  - rl_engineer: pass (2/2 checks)
+
+
+### CHG-20260202-101148: 1 files changed: code (1 files)
+- **Date**: 2026-02-02 10:11
+- **Proposed By**: @rl_engineer
+- **Validated By**: @rl_engineer
+- **Status**: AUTO-APPROVED
+- **Files**: validation/run_validation.py
+- **Validations**:
+  - rl_engineer: pass (2/2 checks)
+
+
+### CHG-20260202-101353: 1 files changed: code (1 files)
+- **Date**: 2026-02-02 10:13
+- **Proposed By**: @rl_engineer
+- **Validated By**: @rl_engineer, @quant_developer
+- **Status**: AUTO-APPROVED
+- **Files**: gym_env/nautilus_env.py
+- **Validations**:
+  - rl_engineer: pass (2/2 checks)
+  - quant_developer: pass (2/2 checks)
+
+
+### CHG-20260202-101414: 1 files changed: code (1 files)
+- **Date**: 2026-02-02 10:14
+- **Proposed By**: @rl_engineer
+- **Validated By**: @quant_developer, @rl_engineer
+- **Status**: AUTO-APPROVED
+- **Files**: gym_env/nautilus_env.py
+- **Validations**:
+  - quant_developer: pass (2/2 checks)
+  - rl_engineer: pass (2/2 checks)
+
+### D-013: GPU Infrastructure for 500 Agents
+- **Date**: 2026-02-02
+- **Decided By**: @team_review (@mlops_engineer, @rl_engineer)
+- **Choice**: RunPod A100 80GB single GPU for batch training
+- **Alternatives Considered**:
+  - Local RTX 3070: 14 days, $0, high hardware wear
+  - RunPod A40 48GB: 88 hours, $70, budget option
+  - RunPod 4xA100: 11 hours, $88, complex setup
+- **Rationale**:
+  - 44 hours total training time (~2 days)
+  - $88 total cost for 500 agents
+  - 8 agents in parallel per batch
+  - Simple setup, single GPU
+- **Implementation**:
+  - Create `training/runpod_launcher.py`
+  - Upload data catalog to RunPod volume
+  - MLflow tracking for all runs
+- **Status**: APPROVED - Pending user budget confirmation ($88)
+- **Document**: `.roles/retrospectives/GPU_INFRASTRUCTURE_EVAL.md`
+
+### D-014: Prioritization Criteria Added
+- **Date**: 2026-02-02
+- **Decided By**: User directive
+- **Choice**: Add automatic prioritization to governance config
+- **Priority Order**:
+  1. Security/Risk (always first)
+  2. Infrastructure (system stability)
+  3. Features (new functionality)
+- **Rationale**: User wants consistent prioritization of tasks
+- **Impact**: `config/autonomous_config.yaml` updated with prioritization section
+- **Auto-action**: Higher priority tasks can interrupt lower priority
+
+---
+
 ## Template
 
 ```markdown
