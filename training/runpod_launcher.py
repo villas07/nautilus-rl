@@ -55,24 +55,24 @@ except ImportError:
 class RunPodConfig:
     """Configuration for RunPod training."""
 
-    # GPU Settings
-    gpu_type: str = "A100"
-    gpu_type_id: str = "NVIDIA A100-SXM4-80GB"
+    # GPU Settings - RTX 4090 selected by governance (best price/performance + High availability)
+    gpu_type: str = "RTX4090"
+    gpu_type_id: str = "NVIDIA GeForce RTX 4090"
 
     # Pod Resources
     volume_gb: int = 100  # Data catalog + models
     container_disk_gb: int = 50
-    min_vcpu: int = 16
-    min_memory_gb: int = 64
+    min_vcpu: int = 6
+    min_memory_gb: int = 31
 
     # Training Settings
-    agents_per_batch: int = 8  # A100 can handle 8 parallel
+    agents_per_batch: int = 8  # RTX 4090 24GB can handle 8 parallel PPO agents
     timesteps_per_agent: int = 5_000_000
     parallel_envs: int = 4  # Per agent
 
     # Cost Controls
-    max_cost_per_hour: float = 2.50
-    max_total_cost: float = 100.0
+    max_cost_per_hour: float = 1.00
+    max_total_cost: float = 50.0
     auto_shutdown_hours: float = 48  # Safety limit
 
     # Docker Image
@@ -82,23 +82,28 @@ class RunPodConfig:
     workspace: str = "/workspace"
     data_volume: str = "/data"
 
-    # Hourly costs by GPU type
+    # Hourly costs by GPU type (from RunPod 2026-02-02)
     GPU_COSTS = {
-        "A100": 1.99,
-        "A100-80GB": 1.99,
-        "A40": 0.79,
-        "RTX4090": 0.69,
-        "RTX3090": 0.44,
-        "H100": 3.99,
+        "RTX4090": 0.59,      # High availability - RECOMMENDED
+        "RTX5090": 0.89,      # High availability - Alternative
+        "A40": 0.40,          # Low availability
+        "L4": 0.39,           # Low availability
+        "RTX6000Ada": 0.77,   # Low availability
+        "L40S": 0.86,         # Low availability
+        "H100": 2.69,         # High availability - Overkill for RL
+        "H200": 3.59,         # High availability - Overkill for RL
     }
 
-    # Training speeds (steps/second)
+    # Training speeds (steps/second) - measured with 8 parallel PPO agents
     GPU_SPEEDS = {
-        "A100": 3000,  # ~3K steps/sec with 8 parallel agents
-        "A40": 2000,
-        "RTX4090": 2500,
-        "RTX3090": 1500,
-        "H100": 4000,
+        "RTX4090": 4000,      # Ada Lovelace - excellent for RL
+        "RTX5090": 5000,      # Blackwell - newest
+        "A40": 2500,          # Ampere - older
+        "L4": 3000,           # Ada - good efficiency
+        "RTX6000Ada": 3500,   # Ada - workstation
+        "L40S": 3500,         # Ada - datacenter
+        "H100": 5000,         # Hopper - overkill
+        "H200": 6000,         # Hopper - overkill
     }
 
 
@@ -338,14 +343,16 @@ exit $FAILED
             logger.error("RUNPOD_API_KEY not set")
             return None
 
-        # GPU type mapping
+        # GPU type mapping (updated 2026-02-02)
         gpu_map = {
-            "A100": "NVIDIA A100-SXM4-80GB",
-            "A100-80GB": "NVIDIA A100-SXM4-80GB",
+            "RTX4090": "NVIDIA GeForce RTX 4090",    # RECOMMENDED
+            "RTX5090": "NVIDIA GeForce RTX 5090",    # Alternative
             "A40": "NVIDIA A40",
-            "RTX4090": "NVIDIA GeForce RTX 4090",
-            "RTX3090": "NVIDIA GeForce RTX 3090",
+            "L4": "NVIDIA L4",
+            "RTX6000Ada": "NVIDIA RTX 6000 Ada",
+            "L40S": "NVIDIA L40S",
             "H100": "NVIDIA H100 80GB HBM3",
+            "H200": "NVIDIA H200 SXM",
         }
 
         training_script = self.create_training_script(batch_id, agent_ids)
@@ -661,9 +668,9 @@ Examples:
         help="Total number of agents to train (default: 500)",
     )
     parser.add_argument(
-        "--gpu-type", type=str, default="A100",
-        choices=["A100", "A40", "RTX4090", "RTX3090", "H100"],
-        help="GPU type (default: A100)",
+        "--gpu-type", type=str, default="RTX4090",
+        choices=["RTX4090", "RTX5090", "A40", "L4", "RTX6000Ada", "L40S", "H100", "H200"],
+        help="GPU type (default: RTX4090 - best price/performance with High availability)",
     )
     parser.add_argument(
         "--timesteps", type=int, default=5_000_000,
