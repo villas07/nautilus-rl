@@ -427,19 +427,25 @@ def main():
     """CLI entry point."""
     parser = argparse.ArgumentParser(description="Run validation pipeline")
 
+    # Resolve default paths relative to project root
+    project_root = Path(__file__).parent.parent
+    default_models = str(project_root / "models")
+    default_catalog = str(project_root / "data" / "catalog")
+    default_output = str(project_root / "validation" / "results")
+
     parser.add_argument(
         "--models-dir",
-        default="/app/models",
+        default=default_models,
         help="Directory containing trained models",
     )
     parser.add_argument(
         "--catalog",
-        default="/app/data/catalog",
+        default=default_catalog,
         help="Path to data catalog",
     )
     parser.add_argument(
         "--output-dir",
-        default="/app/validation",
+        default=default_output,
         help="Output directory for results",
     )
     parser.add_argument(
