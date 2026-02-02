@@ -9,6 +9,8 @@ Validates agents against minimum performance thresholds:
 - Number of trades > 50
 """
 
+__version__ = "1.0.0"
+
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 from pathlib import Path
