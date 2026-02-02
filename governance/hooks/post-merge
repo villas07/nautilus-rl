@@ -1,0 +1,94 @@
+#!/bin/bash
+# Post-merge hook for autonomous governance
+#
+# This hook runs AFTER a merge is completed.
+# It verifies system integrity after external changes.
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+echo "========================================"
+echo "      POST-MERGE INTEGRITY CHECK        "
+echo "========================================"
+
+cd "$PROJECT_ROOT"
+
+# ============================================
+# CHECK 1: Verify integrity after merge
+# ============================================
+echo ""
+echo "[1/2] Verifying system integrity..."
+
+python -c "
+import sys
+sys.path.insert(0, '.')
+from governance.integrity import verify_integrity, initialize_checksums, log_warning
+from datetime import datetime
+
+ok, violations = verify_integrity()
+
+if not ok:
+    print('[ALERT] Integrity changes detected after merge:')
+    for v in violations:
+        print(f'  - {v}')
+
+    # Log the changes
+    log_warning(
+        f'Post-merge integrity change detected. Violations: {violations}',
+        severity='MERGE_INTEGRITY_CHANGE'
+    )
+
+    print('')
+    print('These files have changed from their recorded checksums.')
+    print('If this is expected, run:')
+    print('  python -c \"from governance.integrity import initialize_checksums; initialize_checksums()\"')
+    print('')
+else:
+    print('      [OK] All protected files verified')
+"
+
+# ============================================
+# CHECK 2: Verify immutable rules
+# ============================================
+echo "[2/2] Verifying immutable rules..."
+
+RULES_FILE="$PROJECT_ROOT/.rules/IMMUTABLE_RULES.md"
+HASH_FILE="$PROJECT_ROOT/.rules/RULES_HASH"
+
+if [ -f "$RULES_FILE" ] && [ -f "$HASH_FILE" ]; then
+    STORED_HASH=$(cat "$HASH_FILE")
+    CURRENT_HASH=$(sha256sum "$RULES_FILE" 2>/dev/null | cut -d' ' -f1 || shasum -a 256 "$RULES_FILE" | cut -d' ' -f1)
+
+    if [ "$STORED_HASH" != "$CURRENT_HASH" ]; then
+        echo ""
+        echo "[CRITICAL] IMMUTABLE_RULES.md has been modified!"
+        echo ""
+        echo "This is a CRITICAL security alert."
+        echo "The immutable rules file should NEVER change without formal process."
+        echo ""
+        echo "Actions required:"
+        echo "  1. Review the changes: git diff HEAD~1 .rules/IMMUTABLE_RULES.md"
+        echo "  2. If unauthorized, revert: git checkout HEAD~1 -- .rules/IMMUTABLE_RULES.md"
+        echo "  3. Report this incident"
+        echo ""
+
+        # Log critical warning
+        python -c "
+from governance.integrity import log_warning
+log_warning('IMMUTABLE_RULES.md modified during merge', severity='CRITICAL')
+" 2>/dev/null || true
+    else
+        echo "      [OK] Immutable rules unchanged"
+    fi
+else
+    echo "      [WARNING] Rules or hash file missing"
+fi
+
+echo ""
+echo "========================================"
+echo "    POST-MERGE CHECK COMPLETE           "
+echo "========================================"
+echo ""
+
+# Post-merge is informational, don't block
+exit 0

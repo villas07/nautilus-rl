@@ -1,27 +1,141 @@
 #!/bin/bash
 # Pre-commit hook for autonomous governance
-# This hook validates all changes through the governance engine
+#
+# This hook runs BEFORE any commit is accepted.
+# It validates:
+# 1. Immutable files are not modified
+# 2. Protected files trigger warnings
+# 3. Code passes governance validation
+#
+# If any check fails, the commit is REJECTED.
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-echo "🔍 Running Governance CI/CD Pipeline..."
+echo "========================================"
+echo "       PRE-COMMIT GOVERNANCE CHECK      "
+echo "========================================"
 
-# Run the CI/CD pipeline
 cd "$PROJECT_ROOT"
+
+# Get list of staged files
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR 2>/dev/null || echo "")
+
+if [ -z "$STAGED_FILES" ]; then
+    echo "[OK] No files staged for commit"
+    exit 0
+fi
+
+echo ""
+echo "Staged files:"
+echo "$STAGED_FILES" | while read f; do echo "  - $f"; done
+echo ""
+
+# ============================================
+# CHECK 1: Immutable files cannot be modified
+# ============================================
+echo "[1/4] Checking immutable files..."
+
+IMMUTABLE_FILES=".rules/IMMUTABLE_RULES.md"
+
+for immutable in $IMMUTABLE_FILES; do
+    if echo "$STAGED_FILES" | grep -q "^$immutable$"; then
+        echo ""
+        echo "[BLOCKED] IMMUTABLE FILE MODIFICATION DETECTED"
+        echo ""
+        echo "  File: $immutable"
+        echo ""
+        echo "  This file CANNOT be modified through normal commits."
+        echo "  It requires a formal change process with:"
+        echo "    1. 24-hour cooling period"
+        echo "    2. Full backup creation"
+        echo "    3. Multi-role approval"
+        echo ""
+        echo "  To proceed, use: git commit --no-verify"
+        echo "  (This will be logged as a violation)"
+        echo ""
+        exit 1
+    fi
+done
+echo "      [OK] No immutable files modified"
+
+# ============================================
+# CHECK 2: Protected files trigger warning
+# ============================================
+echo "[2/4] Checking protected files..."
+
+PROTECTED_FILES="CLAUDE.md config/autonomous_config.yaml governance/governance_engine.py"
+PROTECTED_MODIFIED=""
+
+for protected in $PROTECTED_FILES; do
+    if echo "$STAGED_FILES" | grep -q "^$protected$"; then
+        PROTECTED_MODIFIED="$PROTECTED_MODIFIED $protected"
+    fi
+done
+
+if [ -n "$PROTECTED_MODIFIED" ]; then
+    echo "      [WARNING] Protected files being modified:"
+    for p in $PROTECTED_MODIFIED; do
+        echo "        - $p"
+    done
+    echo "      These changes will be logged and require extra validation."
+else
+    echo "      [OK] No protected files modified"
+fi
+
+# ============================================
+# CHECK 3: Verify session protocol
+# ============================================
+echo "[3/4] Checking session protocol..."
+
+SESSION_MARKER="$PROJECT_ROOT/.rules/.session_active"
+
+if [ ! -f "$SESSION_MARKER" ]; then
+    echo "      [WARNING] Session not started via protocol"
+    echo "      Run: python scripts/session_start.py"
+    # Don't block, but log warning
+    echo "$(date -Iseconds): Pre-commit without session protocol" >> "$PROJECT_ROOT/.rules/WARNINGS.md" 2>/dev/null || true
+fi
+
+echo "      [OK] Session check complete"
+
+# ============================================
+# CHECK 4: Run governance CI/CD pipeline
+# ============================================
+echo "[4/4] Running governance validation..."
+
 python -m governance.ci_cd --staged-only --report
 
 RESULT=$?
 
+echo ""
 if [ $RESULT -eq 0 ]; then
-    echo "[PASS] Governance validation PASSED"
+    echo "========================================"
+    echo "    [PASS] GOVERNANCE VALIDATION PASSED "
+    echo "========================================"
+
+    # Update checksums for protected files if modified
+    if [ -n "$PROTECTED_MODIFIED" ]; then
+        echo ""
+        echo "Updating checksums for modified protected files..."
+        python -c "
+from governance.integrity import update_checksums_for_files
+files = '$PROTECTED_MODIFIED'.split()
+update_checksums_for_files(files)
+print('[OK] Checksums updated')
+" 2>/dev/null || true
+    fi
+
     exit 0
 else
-    echo "[FAIL] Governance validation FAILED"
+    echo "========================================"
+    echo "    [FAIL] GOVERNANCE VALIDATION FAILED "
+    echo "========================================"
     echo ""
     echo "Changes have been auto-reverted."
     echo "Check .roles/LESSONS_LEARNED.md for details."
+    echo ""
     exit 1
 fi

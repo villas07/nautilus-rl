@@ -1,0 +1,6 @@
+{
+  "CLAUDE.md": "7a6c5aca2fa0b768f7d6fe1e69a41351a6919ce0b4c12c9633d24c32d9deec79",
+  ".rules/IMMUTABLE_RULES.md": "c0a20884860584e06c036177919f86611cbfcc944c2a8593471d7a3601189101",
+  "config/autonomous_config.yaml": "432df4bce787dad039f1f41ef7423c940f8ba635c32e15aca6707d2e03566a9b",
+  "governance/governance_engine.py": "9939247d10edc14cc7bb808a3d00f97ca7c3c85173dd6663010326c24a8b4477"
+}

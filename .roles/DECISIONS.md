@@ -114,6 +114,26 @@ Historical record of all decisions made. Used for:
 
 ---
 
+
+### CHG-20260202-090627: 5 files changed: code (4 files)
+- **Date**: 2026-02-02 09:06
+- **Proposed By**: @mlops_engineer
+- **Validated By**: @mlops_engineer
+- **Status**: AUTO-APPROVED
+- **Files**: governance/ci_cd.py, governance/governance_engine.py, governance/hooks/install_hooks.py, governance/hooks/pre-commit, governance/validators/rl_validator.py
+- **Validations**:
+  - mlops_engineer: pass (2/2 checks)
+
+
+### CHG-20260202-090711: 1 files changed: code (1 files)
+- **Date**: 2026-02-02 09:07
+- **Proposed By**: @rl_engineer
+- **Validated By**: @rl_engineer
+- **Status**: AUTO-APPROVED
+- **Files**: validation/filter_1_basic.py
+- **Validations**:
+  - rl_engineer: pass (2/2 checks)
+
 ## Template
 
 ```markdown

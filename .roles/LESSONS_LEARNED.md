@@ -60,6 +60,30 @@ Continuous improvement through documented learnings.
 
 ---
 
+
+### L-AUTO-CHG-20260202-090352: Change Rejected by Governance
+- **Date**: 2026-02-02
+- **Change ID**: CHG-20260202-090352
+- **Proposed By**: @rl_engineer
+- **Description**: 1 files changed: code (1 files)
+- **Failed Validations**:
+  - **rl_engineer**: Unit tests failed: 
+    - FAILED: unit_tests_pass
+- **Action Taken**: Auto-reverted
+- **Prevention**: Review validation criteria before proposing similar changes
+
+
+### L-AUTO-CHG-20260202-090515: Change Rejected by Governance
+- **Date**: 2026-02-02
+- **Change ID**: CHG-20260202-090515
+- **Proposed By**: @mlops_engineer
+- **Description**: 6 files changed: code (5 files)
+- **Failed Validations**:
+  - **rl_engineer**: Unit tests failed: 
+    - FAILED: unit_tests_pass
+- **Action Taken**: Auto-reverted
+- **Prevention**: Review validation criteria before proposing similar changes
+
 ## Template for New Lessons
 
 ```markdown

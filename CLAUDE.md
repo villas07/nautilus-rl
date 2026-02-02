@@ -1,29 +1,32 @@
 # Nautilus-Agents Project Context
 
-> **🤖 SISTEMA AUTÓNOMO CON GOVERNANCE**
-> - Operación autónoma sin aprobación humana
-> - Validación automática entre roles
+> **SISTEMA AUTONOMO CON GOVERNANCE**
+> - Operacion autonoma sin aprobacion humana
+> - Validacion automatica entre roles
 > - Reglas inmutables en `.rules/IMMUTABLE_RULES.md`
-> - Solo alertas CRÍTICAS van a Telegram
+> - Solo alertas CRITICAS van a Telegram
 
-## ⚠️ MANDATORY: Session Initialization
+## [CRITICAL] MANDATORY: Session Start Protocol
 
-**ANTES DE CUALQUIER ACCIÓN**, ejecutar:
-```python
-from governance.session_init import confirm_session
-print(confirm_session())
+**ANTES DE CUALQUIER ACCION**, ejecutar:
+
+```bash
+python scripts/session_start.py
 ```
 
-Esto:
-1. Verifica integridad de IMMUTABLE_RULES.md
-2. Confirma cumplimiento de reglas
-3. Activa el motor de governance
-4. Registra inicio de sesión
+Este script es OBLIGATORIO. Realiza:
+1. Verificacion de integridad de archivos protegidos
+2. Verificacion de IMMUTABLE_RULES.md
+3. Inicializacion del motor de governance
+4. Carga del estado actual de roles
+5. Marcado de sesion activa
+
+**Si no se ejecuta**: El sistema registra "Session without protocol" en WARNINGS.md
 
 ## Quick Start for New Session
 
 ```
-1. RUN governance/session_init.py FIRST
+1. python scripts/session_start.py     <-- OBLIGATORIO
 2. Read .rules/IMMUTABLE_RULES.md
 3. Load config: config/autonomous_config.yaml
 4. Check role's STATE.md for current work
@@ -31,6 +34,16 @@ Esto:
 6. Document in DECISIONS.md or LESSONS_LEARNED.md
 7. Alert ONLY if critical
 ```
+
+## Protected Files
+
+Los siguientes archivos estan protegidos:
+- `.rules/IMMUTABLE_RULES.md` - INMUTABLE (no puede modificarse)
+- `CLAUDE.md` - Protegido (requiere proceso formal)
+- `config/autonomous_config.yaml` - Protegido
+- `governance/governance_engine.py` - Protegido
+
+Los checksums se verifican en cada sesion. Ver: `.rules/CHECKSUMS.md`
 
 ## Governance Flow
 
