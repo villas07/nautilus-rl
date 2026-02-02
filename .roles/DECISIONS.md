@@ -230,6 +230,30 @@ Historical record of all decisions made. Used for:
   - rl_engineer: pass (2/2 checks)
   - quant_developer: pass (2/2 checks)
 
+
+### CHG-20260202-095050: 6 files changed: code (5 files)
+- **Date**: 2026-02-02 09:50
+- **Proposed By**: @rl_engineer
+- **Validated By**: @quant_developer, @rl_engineer, @mlops_engineer
+- **Status**: AUTO-APPROVED
+- **Files**: .roles/DECISIONS.md, .roles/LESSONS_LEARNED.md, .roles/rl_engineer/STATE.md, gym_env/nautilus_env.py, training/train_agent.py...
+- **Validations**:
+  - quant_developer: pass (2/2 checks)
+  - rl_engineer: pass (2/2 checks)
+  - mlops_engineer: pass (2/2 checks)
+
+
+### CHG-20260202-095109: 6 files changed: code (5 files)
+- **Date**: 2026-02-02 09:51
+- **Proposed By**: @rl_engineer
+- **Validated By**: @mlops_engineer, @rl_engineer, @quant_developer
+- **Status**: AUTO-APPROVED
+- **Files**: .roles/DECISIONS.md, .roles/LESSONS_LEARNED.md, .roles/rl_engineer/STATE.md, gym_env/nautilus_env.py, training/train_agent.py...
+- **Validations**:
+  - mlops_engineer: pass (2/2 checks)
+  - rl_engineer: pass (2/2 checks)
+  - quant_developer: pass (2/2 checks)
+
 ## Template
 
 ```markdown
