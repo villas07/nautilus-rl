@@ -17,10 +17,11 @@
       "status": "RUNNING",
       "gpu": "RTX A4000",
       "started": "2026-02-03T07:30:00",
+      "estimated_completion": "2026-02-03T09:30:00",
       "metrics_sample": {
         "ep_len_range": "58-1473",
         "reward_range": "-0.30 to +0.19",
-        "episodes_completed": "42+",
+        "episodes_completed": "100+",
         "catalog_bars": 1793
       }
     },
@@ -51,7 +52,27 @@
       }
     }
   },
-  "last_updated": "2026-02-03T07:33:00",
+  "phase_5_preparation": {
+    "status": "READY",
+    "validation_pipeline": {
+      "filter_1_basic": "validation/filter_1_basic.py",
+      "filter_2_cross_val": "validation/filter_2_cross_val.py",
+      "filter_3_diversity": "validation/filter_3_diversity.py",
+      "filter_4_walkforward": "validation/filter_4_walkforward.py",
+      "filter_5_paper": "validation/filter_5_paper.py",
+      "runner": "validation/run_validation.py"
+    },
+    "scripts_created": [
+      "scripts/validate_batch.py",
+      "scripts/download_models_runpod.sh",
+      "scripts/check_training_status.sh",
+      "scripts/generate_500_agents.py",
+      "scripts/launch_batch_training.py"
+    ],
+    "voting_system": "live/voting_system.py",
+    "agent_config": "configs/agents_500_pro.yaml"
+  },
+  "last_updated": "2026-02-03T08:20:00",
   "blockers_resolved": [
     {
       "issue": "L-007",
@@ -74,9 +95,9 @@
     "catalog_creation": "On pod via scripts/create_catalog_linux.py"
   },
   "next_steps": [
-    "Monitor training progress (5M timesteps ~2-3 hours)",
-    "Download trained models when complete",
-    "Implement regime detector",
-    "Validate agents by market regime"
+    "Wait for batch_2 training completion (~1h remaining)",
+    "Download models: ./scripts/download_models_runpod.sh batch2",
+    "Run validation: python scripts/validate_batch.py --models-dir ./models_batch2",
+    "Scale to 500 agents: python scripts/generate_500_agents.py"
   ]
 }
