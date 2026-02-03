@@ -1,0 +1,23 @@
+{
+  "agent_id": "agent_meta_4h_5f4e",
+  "symbol": "META",
+  "venue": "NASDAQ",
+  "asset_type": "equity",
+  "group": "stocks_tech",
+  "timeframe": "4h",
+  "algorithm": "A2C",
+  "seed": 43,
+  "total_timesteps": 5000000,
+  "learning_rate": 0.0007,
+  "batch_size": 256,
+  "n_epochs": 10,
+  "gamma": 0.99,
+  "gae_lambda": 0.95,
+  "clip_range": 0.2,
+  "ent_coef": 0.01,
+  "lookback_period": 20,
+  "max_episode_steps": 1512,
+  "initial_capital": 100000.0,
+  "reward_type": "sharpe",
+  "n_envs": 2
+}
