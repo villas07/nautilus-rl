@@ -13,6 +13,8 @@
 | **Fases completadas** | 1, 2, 3, 4 |
 | **ML Institucional** | 11/11 recomendaciones ✅ |
 | **Última decisión** | D-038 |
+| **Training activo** | 6 agentes RunPod (batch_2) |
+| **500 configs** | Generados en configs/agents_generated/ |
 | **Regla catálogo** | Linux only (IMMUTABLE 3.3) |
 
 ---

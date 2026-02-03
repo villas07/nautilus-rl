@@ -269,24 +269,28 @@ roadmap:
           name: "Hyperparameter configs"
           description: "Crear 500 configuraciones variando lr, gamma, net_arch, etc."
           owner: "@rl_engineer"
-          files: ["configs/agents_500_pro.yaml"]
+          status: completed  # 2026-02-03
+          files: ["configs/agents_500_pro.yaml", "configs/agents_generated/"]
 
         - id: "5.2"
           name: "Batch training"
           description: "Ejecutar training en RunPod"
           owner: "@mlops_engineer"
-          files: ["training/runpod_launcher.py"]
+          status: in_progress  # batch_2 (6 crypto) running
+          files: ["training/runpod_launcher.py", "scripts/launch_batch_training.py"]
 
         - id: "5.3"
           name: "Validación 5 filtros"
           description: "Ejecutar pipeline de validación"
           owner: "@rl_engineer"
-          files: ["validation/run_validation.py"]
+          status: ready  # scripts prepared
+          files: ["validation/run_validation.py", "scripts/validate_batch.py"]
 
         - id: "5.4"
           name: "Configurar ensemble"
           description: "Seleccionar mejores agentes para voting"
           owner: "@rl_engineer"
+          status: ready  # voting_system.py exists
           files: ["live/voting_system.py"]
 
       exit_criteria:
