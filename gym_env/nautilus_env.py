@@ -48,7 +48,7 @@ from nautilus_trader.trading.strategy import Strategy
 from nautilus_trader.config import StrategyConfig
 
 from gym_env.observation import ObservationBuilder
-from gym_env.rewards import RewardCalculator, RewardType
+from gym_env.rewards import RewardCalculator, RewardType, TripleBarrierConfig
 
 import structlog
 
@@ -60,14 +60,14 @@ class NautilusEnvConfig:
     """Configuration for the NautilusTrader-backed environment."""
 
     # Instrument settings
-    instrument_id: str = "SPY.NASDAQ"
-    venue: str = "NASDAQ"
+    instrument_id: str = "BTCUSDT.BINANCE"  # Default to crypto (available in raw data)
+    venue: str = "BINANCE"
 
     # Data settings
-    catalog_path: str = "/app/data/catalog"
-    bar_type: str = "1-HOUR-LAST"
+    catalog_path: str = "data/catalog"  # Linux-native catalog
+    bar_type: str = "1-DAY-LAST"  # Daily bars (matches raw CSV data)
     start_date: str = "2020-01-01"
-    end_date: str = "2023-12-31"
+    end_date: str = "2025-12-31"
 
     # Account settings
     initial_capital: float = 100_000.0
@@ -90,6 +90,12 @@ class NautilusEnvConfig:
     # Reward settings
     reward_type: str = "sharpe"
     reward_scaling: float = 1.0
+
+    # Triple Barrier settings (R-005)
+    tb_pt_mult: float = 2.0       # Take profit = 2x volatility
+    tb_sl_mult: float = 1.0       # Stop loss = 1x volatility
+    tb_max_holding: int = 10      # Max bars to hold position
+    tb_vol_lookback: int = 20     # Volatility calculation window
 
     # Venue simulation
     default_leverage: float = 1.0
@@ -324,9 +330,19 @@ class NautilusBacktestEnv(gym.Env):
             lookback_period=self.config.lookback_period,
             num_features=self.config.observation_features,
         )
+
+        # Triple Barrier config (R-005)
+        tb_config = TripleBarrierConfig(
+            pt_mult=self.config.tb_pt_mult,
+            sl_mult=self.config.tb_sl_mult,
+            max_holding_bars=self.config.tb_max_holding,
+            vol_lookback=self.config.tb_vol_lookback,
+        )
+
         self.reward_calculator = RewardCalculator(
             reward_type=RewardType(self.config.reward_type),
             scaling=self.config.reward_scaling,
+            triple_barrier_config=tb_config,
         )
 
         # NautilusTrader components (initialized on reset)
@@ -355,20 +371,43 @@ class NautilusBacktestEnv(gym.Env):
         """Load the ParquetDataCatalog."""
         catalog_path = Path(self.config.catalog_path)
 
+        # L-007 FIX: Better path diagnostics
+        logger.info(f"Attempting to load catalog from: {catalog_path}")
+        logger.info(f"Absolute path: {catalog_path.absolute()}")
+        logger.info(f"Path exists: {catalog_path.exists()}")
+
         if not catalog_path.exists():
-            logger.warning(f"Catalog path does not exist: {catalog_path}")
-            return
+            # Try common alternative paths
+            alt_paths = [
+                Path("/app/data/catalog"),
+                Path("/app/data/catalog_nautilus"),
+                Path("data/catalog"),
+                Path("data/catalog_nautilus"),
+            ]
+            for alt_path in alt_paths:
+                if alt_path.exists():
+                    logger.warning(f"Catalog not at {catalog_path}, but found at {alt_path}")
+                    catalog_path = alt_path
+                    break
+            else:
+                logger.error(f"Catalog path does not exist: {catalog_path}")
+                logger.error(f"Tried alternatives: {[str(p) for p in alt_paths]}")
+                return
 
         try:
             self._catalog = ParquetDataCatalog(str(catalog_path))
-            logger.info(f"Loaded catalog from {catalog_path}")
+            logger.info(f"Successfully loaded catalog from {catalog_path}")
 
-            # List available instruments
+            # List available instruments for debugging
             instruments = self._catalog.instruments()
             logger.info(f"Catalog contains {len(instruments)} instruments")
+            for inst in instruments[:10]:  # Show first 10
+                logger.info(f"  - {inst.id}")
 
         except Exception as e:
             logger.error(f"Failed to load catalog: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             self._catalog = None
 
     def _create_engine(self) -> BacktestEngine:
@@ -462,6 +501,11 @@ class NautilusBacktestEnv(gym.Env):
         self._bars_data = []
         if self._catalog:
             instrument_id = InstrumentId.from_str(self.config.instrument_id)
+
+            # Log available instruments for debugging
+            available_instruments = self._catalog.instruments()
+            logger.info(f"Catalog has {len(available_instruments)} instruments: {[str(i.id) for i in available_instruments[:5]]}")
+
             bars = self._catalog.bars(
                 instrument_ids=[str(instrument_id)],
                 start=pd.Timestamp(self.config.start_date),
@@ -470,6 +514,23 @@ class NautilusBacktestEnv(gym.Env):
             if bars:
                 self._bars_data = list(bars)
                 logger.info(f"Loaded {len(self._bars_data)} bars for episode")
+            else:
+                logger.warning(f"No bars found for {instrument_id} between {self.config.start_date} and {self.config.end_date}")
+        else:
+            logger.error(f"Catalog not loaded! Path: {self.config.catalog_path}")
+
+        # L-007 FIX: Validate that we have enough data for an episode
+        min_bars_required = self.config.lookback_period + 10  # At least 10 steps after lookback
+        if len(self._bars_data) < min_bars_required:
+            error_msg = (
+                f"L-007 ERROR: Insufficient bar data! "
+                f"Have {len(self._bars_data)} bars, need at least {min_bars_required}. "
+                f"instrument_id={self.config.instrument_id}, "
+                f"catalog_path={self.config.catalog_path}, "
+                f"catalog_loaded={self._catalog is not None}"
+            )
+            logger.error(error_msg)
+            raise ValueError(error_msg)
 
         # Reset episode state
         self._step_count = 0
@@ -547,12 +608,14 @@ class NautilusBacktestEnv(gym.Env):
             step_return = 0.0
         self._returns.append(step_return)
 
-        # Calculate reward
+        # Calculate reward (with Triple Barrier support - R-005)
         reward = self.reward_calculator.calculate(
             portfolio_value=current_equity,
             prev_portfolio_value=self._prev_equity,
             returns=self._returns,
             position=self._position,
+            current_price=current_price,
+            entry_price=self._entry_price,
         )
 
         # Update state

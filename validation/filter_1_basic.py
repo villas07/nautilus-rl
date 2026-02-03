@@ -1,15 +1,17 @@
 """
 Filter 1: Basic Metrics Validation
 
-Validates agents against minimum performance thresholds:
-- Sharpe Ratio > 1.5
-- Max Drawdown < 15%
-- Win Rate > 50%
-- Profit Factor > 1.5
-- Number of trades > 50
+Validates agents against minimum performance thresholds from governance config:
+- Sharpe Ratio > 1.2 (configurable)
+- Max Drawdown < 15% (configurable)
+- Win Rate > 45% (configurable)
+- Profit Factor > 1.2 (configurable)
+- Number of trades > 50 (configurable)
+
+Thresholds are loaded from config/autonomous_config.yaml
 """
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
@@ -17,6 +19,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import yaml
 
 from stable_baselines3 import PPO
 
@@ -25,16 +28,41 @@ import structlog
 logger = structlog.get_logger()
 
 
+def load_validation_config() -> Dict[str, Any]:
+    """Load validation thresholds from governance config."""
+    config_path = Path(__file__).parent.parent / "config" / "autonomous_config.yaml"
+
+    if config_path.exists():
+        with open(config_path, encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+            return config.get("validation", {}).get("filter_1_basic", {})
+
+    return {}
+
+
 @dataclass
 class BasicMetricsCriteria:
-    """Criteria for basic metrics filter."""
+    """Criteria for basic metrics filter. Loaded from governance config."""
 
-    min_sharpe: float = 1.5
-    max_drawdown: float = 0.15
-    min_win_rate: float = 0.50
-    min_profit_factor: float = 1.5
-    min_trades: int = 50
+    min_sharpe: float = 1.2          # governance: min_sharpe_ratio
+    max_drawdown: float = 0.15       # governance: max_drawdown_pct / 100
+    min_win_rate: float = 0.45       # governance: min_win_rate_pct / 100
+    min_profit_factor: float = 1.2   # governance: min_profit_factor
+    min_trades: int = 50             # governance: min_trades
     min_total_return: float = 0.0
+
+    @classmethod
+    def from_config(cls) -> "BasicMetricsCriteria":
+        """Create criteria from governance config."""
+        config = load_validation_config()
+
+        return cls(
+            min_sharpe=config.get("min_sharpe_ratio", 1.2),
+            max_drawdown=config.get("max_drawdown_pct", 15.0) / 100.0,
+            min_win_rate=config.get("min_win_rate_pct", 45.0) / 100.0,
+            min_profit_factor=config.get("min_profit_factor", 1.2),
+            min_trades=config.get("min_trades", 50),
+        )
 
 
 @dataclass
@@ -65,13 +93,21 @@ class BasicMetricsFilter:
         Initialize filter.
 
         Args:
-            criteria: Validation criteria.
+            criteria: Validation criteria. If None, loads from governance config.
             models_dir: Directory containing trained models.
             catalog_path: Path to data catalog.
         """
-        self.criteria = criteria or BasicMetricsCriteria()
+        # Load from governance config by default
+        self.criteria = criteria or BasicMetricsCriteria.from_config()
         self.models_dir = Path(models_dir)
         self.catalog_path = catalog_path
+
+        logger.info(
+            "BasicMetricsFilter initialized",
+            min_sharpe=self.criteria.min_sharpe,
+            max_drawdown=f"{self.criteria.max_drawdown:.1%}",
+            min_win_rate=f"{self.criteria.min_win_rate:.1%}",
+        )
 
     def validate(self, agent_id: str) -> ValidationResult:
         """

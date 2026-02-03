@@ -83,7 +83,7 @@ class TrainingConfig:
     # Paths
     output_dir: str = "/app/models"
     log_dir: str = "/app/logs"
-    catalog_path: str = "/app/data/catalog"
+    catalog_path: str = "data/catalog_nautilus"
 
     # MLflow
     use_mlflow: bool = True

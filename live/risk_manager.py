@@ -1,11 +1,15 @@
 """
-Risk Manager for Live Trading
+Risk Manager for Live Trading (R-012)
 
 Implements risk controls and circuit breakers for live trading:
 - Position limits
 - Daily loss limits
 - Drawdown limits
 - Volatility-based sizing
+- Pre-trade validation
+- Circuit breakers
+
+Reference: EVAL-002, governance/evaluations/EVAL-002_gaps_analysis.md
 """
 
 from typing import Dict, Any, Optional, List, Tuple

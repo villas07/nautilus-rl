@@ -1,0 +1,82 @@
+{
+  "active_pods": [
+    {
+      "pod_id": "t2q1v2sw61qjd7",
+      "ssh": "root@193.183.22.54 -p 1795",
+      "gpu": "RTX A4000",
+      "cost_per_hour": 0.17,
+      "started": "2026-02-03T07:30:00"
+    }
+  ],
+  "job_tracker": {
+    "t2q1v2sw61qjd7_batch2": {
+      "batch_id": 2,
+      "agents": ["agent_000", "agent_001", "agent_002", "agent_003", "agent_004", "agent_005"],
+      "symbols": ["BTCUSDT", "ETHUSDT", "BNBUSDT", "ADAUSDT", "DOTUSDT", "LINKUSDT"],
+      "timesteps": 5000000,
+      "status": "RUNNING",
+      "gpu": "RTX A4000",
+      "started": "2026-02-03T07:30:00",
+      "metrics_sample": {
+        "ep_len_range": "58-1473",
+        "reward_range": "-0.30 to +0.19",
+        "episodes_completed": "42+",
+        "catalog_bars": 1793
+      }
+    },
+    "3lobfx9w41qjzs": {
+      "batch_id": 1,
+      "agents": ["agent_008", "agent_009", "agent_011", "agent_012", "agent_014", "agent_015"],
+      "timesteps": 5000000,
+      "status": "FAILED",
+      "failure_reason": "L-007 + L-010: Catalog incompatibility",
+      "gpu": "RTX A4000",
+      "started": "2026-02-02T17:38:00",
+      "stopped": "2026-02-02T22:15:00",
+      "cost_usd": 1.00
+    },
+    "o3ryo2vhcz63n9": {
+      "type": "validation",
+      "purpose": "L-007 + L-010 fix verification",
+      "status": "SUCCESS",
+      "gpu": "RTX A4000",
+      "started": "2026-02-03T07:15:00",
+      "stopped": "2026-02-03T07:25:00",
+      "results": {
+        "catalog_instruments": 137,
+        "catalog_bars": 179643,
+        "ep_len_mean": 308,
+        "n_updates": 190,
+        "training_works": true
+      }
+    }
+  },
+  "last_updated": "2026-02-03T07:33:00",
+  "blockers_resolved": [
+    {
+      "issue": "L-007",
+      "description": "Episodes terminate after 1 step when no data",
+      "fix": "Added fail-fast validation in reset()",
+      "resolved": "2026-02-03"
+    },
+    {
+      "issue": "L-010",
+      "description": "Windows Parquet catalog incompatible with Linux",
+      "fix": "Create catalog in Linux using create_catalog_linux.py",
+      "resolved": "2026-02-03"
+    }
+  ],
+  "ready_for_training": true,
+  "data_flow": {
+    "raw_data": "VPS: http://46.225.11.110:8080/raw_data.tar.gz",
+    "code": "VPS: http://46.225.11.110:8080/code.tar.gz",
+    "startup_script": "VPS: http://46.225.11.110:8080/pod_startup.sh",
+    "catalog_creation": "On pod via scripts/create_catalog_linux.py"
+  },
+  "next_steps": [
+    "Monitor training progress (5M timesteps ~2-3 hours)",
+    "Download trained models when complete",
+    "Implement regime detector",
+    "Validate agents by market regime"
+  ]
+}

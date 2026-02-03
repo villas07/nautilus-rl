@@ -2,6 +2,8 @@
 Health Check System
 
 Monitors system health and sends alerts when issues are detected.
+
+Requires: psutil
 """
 
 import os
@@ -10,7 +12,16 @@ from typing import Dict, Any, List, Optional, Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-import psutil
+
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
+    raise ImportError(
+        "psutil is required for health_checks. "
+        "Install with: pip install psutil"
+    )
 
 import structlog
 

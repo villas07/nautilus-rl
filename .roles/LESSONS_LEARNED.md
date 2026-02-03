@@ -97,22 +97,97 @@ Continuous improvement through documented learnings.
 - **Action Taken**: Auto-reverted
 - **Prevention**: Review validation criteria before proposing similar changes
 
-### L-007: Environment-Strategy Action Flow Broken
+### L-007: Environment Episodes Terminate Immediately (RESOLVED)
 - **Date**: 2026-02-02
+- **Updated**: 2026-02-03 (FIX APPLIED)
 - **Discovered By**: @rl_engineer (autonomous validation D-011)
-- **Problem**: NautilusBacktestEnv.step() doesn't route RL actions to GymTradingStrategy
+- **Problem**: Episodes terminated after 1 step because `_bars_data` was empty
 - **Symptoms**:
-  - Backtest completes with Total orders: 0
-  - 250 iterations (bars) process instantly (~100ms)
-  - No PPO training metrics appear
-  - Agent never generates trades
-- **Root Cause**: The GymTradingStrategy receives bar updates but never receives action signals from the RL agent. The step() method advances the backtest but doesn't execute trades based on actions.
-- **Investigation Needed**:
-  1. How does step() communicate actions to the strategy?
-  2. Does on_bar() in GymTradingStrategy check for external action signals?
-  3. Is there a missing callback or event mechanism?
-- **Files Affected**: `gym_env/nautilus_env.py` (NautilusBacktestEnv class)
-- **Status**: OPEN - requires architecture review
+  - mean_ep_length: 1
+  - mean_reward: 0
+  - explained_variance: nan
+- **RunPod Evidence** (5 hours, $1.00 spent):
+  ```
+  mean_ep_length: 1          # Episodes end after 1 step!
+  mean_reward: 0             # Always zero reward
+  ```
+- **Root Cause Analysis**:
+  1. `reset()` set `_current_bar_idx = lookback_period` (20)
+  2. If catalog failed to load or bars query returned empty, `_bars_data = []`
+  3. In `step()`: `if _current_bar_idx >= len(_bars_data)` → `20 >= 0` → True!
+  4. Episode terminated immediately returning `done=True`
+- **Solution Applied (2026-02-03)**:
+  1. Added validation in `reset()` to raise `ValueError` if insufficient bars
+  2. Improved `_load_catalog()` with path diagnostics and fallback paths
+  3. Added logging for available instruments and loaded bar count
+  4. Added test `test_l007_no_data_raises_error()` to verify fix
+- **Files Changed**:
+  - `gym_env/nautilus_env.py` - Added fail-fast validation
+  - `tests/test_gym_env.py` - Fixed imports + added L-007 test
+- **Status**: **RESOLVED** - Fix applied, tests pass
+- **Prevention**: Always validate data is loaded before starting episode
+
+### L-008: Tar.gz Structure Must Preserve Directories
+- **Date**: 2026-02-02
+- **Discovered By**: @mlops_engineer
+- **Problem**: `code.tar.gz` had all files in root instead of subdirectories, causing `ModuleNotFoundError: No module named 'gym_env'`
+- **Symptoms**:
+  - Pods downloaded code but training failed immediately
+  - Python couldn't find modules despite files existing
+- **Root Cause**: Tar was created from wrong directory or with wrong arguments
+- **Solution**:
+  ```bash
+  cd /project/root && tar -czvf code.tar.gz gym_env/ training/ strategies/ ...
+  ```
+- **Prevention**:
+  - Always verify structure: `tar -tzf code.tar.gz | head -20`
+  - Should show `gym_env/`, `gym_env/__init__.py`, not `__init__.py` at root
+- **Files Affected**: VPS `/var/www/html/nautilus/code.tar.gz`
+
+### L-009: RunPod SSH Requires Account-Level Key Setup
+- **Date**: 2026-02-02
+- **Discovered By**: @mlops_engineer (with user)
+- **Problem**: SSH to pods asked for password despite `PUBLIC_KEY` env var
+- **Symptoms**: `Permission denied (publickey,password)`
+- **Root Cause**: RunPod requires SSH key in account settings, not just per-pod env
+- **Solution**:
+  1. Go to RunPod dashboard → Pod → Connect tab
+  2. Paste public key in "SSH public key" field
+  3. Click Save
+  4. Create NEW pod (existing pods don't get updated key)
+- **Prevention**: Set up SSH key in RunPod account BEFORE creating pods
+- **Files Affected**: RunPod account settings
+
+### L-010: Cross-Platform Parquet Serialization Incompatibility (CRITICAL)
+- **Date**: 2026-02-03
+- **Discovered By**: @rl_engineer, @mlops_engineer
+- **Problem**: NautilusTrader ParquetDataCatalog created on Windows cannot be read on Linux
+- **Symptoms**:
+  ```
+  Price raw bytes must be exactly the size of PriceRaw: TryFromSliceError(())
+  ```
+  - Catalog loads (instruments visible)
+  - Bars query crashes with Rust panic
+  - Results in L-007 symptoms (ep_length=1, reward=0)
+- **Root Cause**: Binary serialization of Price/Quantity types differs between Windows and Linux
+- **Solution**:
+  1. Keep raw data (CSV) on PC or VPS
+  2. Create catalog IN LINUX (VPS or RunPod pod)
+  3. Use `scripts/create_catalog_linux.py` to convert CSV → Catalog
+  4. Sync Linux-native catalog to RunPod for training
+- **Correct Data Flow**:
+  ```
+  CSV (any OS) → Catalog (create in Linux) → Training (Linux/RunPod)
+  ```
+- **Files Created**:
+  - `scripts/create_catalog_linux.py` - Converts CSV to catalog
+  - `pod_startup.sh` on VPS - Downloads raw data and creates catalog on pod
+- **Verification**: After fix, training showed:
+  - ep_len_mean: 308 (was 1)
+  - n_updates: 190 (was 0)
+  - PPO learning confirmed
+- **Prevention**: NEVER create catalogs on Windows for Linux use
+- **Cost of Discovery**: ~$1.50 in RunPod GPU time
 
 ---
 

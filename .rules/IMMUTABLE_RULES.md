@@ -108,6 +108,34 @@ PROHIBIDO:
 - Modificar este archivo sin proceso formal
 ```
 
+### 3.3 Catálogo de Datos NautilusTrader (D-019)
+```
+INMUTABLE: El catálogo NautilusTrader DEBE crearse en Linux (VPS/RunPod), NUNCA en Windows.
+
+Motivo: Parquet de NautilusTrader tiene problemas de serialización entre
+        Windows y Linux. Catálogo creado en Windows NO funciona en RunPod.
+
+Arquitectura obligatoria:
+  PC Windows          VPS Hetzner              RunPod
+  ───────────         ───────────              ──────
+  CSV raw data   →    Catálogo (Linux)    →    Training
+                      O crear en RunPod
+
+PERMITIDO:
+- Datos raw (CSV/Parquet) pueden estar en cualquier sistema
+- Crear catálogo en VPS Hetzner (Linux)
+- Crear catálogo en RunPod (Linux)
+- Sincronizar catálogo Linux → Linux
+
+PROHIBIDO:
+- Crear catálogo NautilusTrader en Windows
+- Usar catálogo creado en Windows para training en Linux
+- Ignorar errores de serialización Parquet
+
+Referencia: D-019, L-010
+Validado: 2026-02-03
+```
+
 ---
 
 ## 4. PROCESO PARA MODIFICAR REGLAS INMUTABLES
@@ -206,8 +234,10 @@ _Esta confirmación se registra automáticamente al cargar el archivo._
 ## CHECKSUMS
 
 ```
-rules_version: 1.0.0
+rules_version: 1.1.0
 created: 2026-02-02
+updated: 2026-02-03
 last_verified: [AUTO-UPDATE]
 sha256: [AUTO-CALCULATE]
+changelog: "Added 3.3 Linux-Native Catalog rule (D-019)"
 ```

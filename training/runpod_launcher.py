@@ -36,6 +36,10 @@ import time
 import subprocess
 
 import structlog
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 logger = structlog.get_logger()
 
@@ -75,15 +79,16 @@ class RunPodConfig:
     max_total_cost: float = 50.0
     auto_shutdown_hours: float = 48  # Safety limit
 
-    # Docker Image
-    docker_image: str = "pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime"
+    # Docker Image - use RunPod's image for better startup command support
+    docker_image: str = "runpod/pytorch:2.2.0-py3.10-cuda12.1.1-devel-ubuntu22.04"
 
     # Paths
     workspace: str = "/workspace"
     data_volume: str = "/data"
 
-    # Data download URL (Hetzner VPS)
-    data_url: str = "http://46.225.11.110:8080/catalog.tar.gz"
+    # Download URLs (Hetzner VPS - updated 2026-02-02 with 633 instruments)
+    data_url: str = "http://46.225.11.110:8080/nautilus/catalog_nautilus_633_20260202.tar.gz"
+    code_url: str = "http://46.225.11.110:8080/nautilus/nautilus_code_v2.tar.gz"
 
     # Hourly costs by GPU type (from RunPod 2026-02-02)
     GPU_COSTS = {
@@ -230,6 +235,19 @@ export MLFLOW_TRACKING_URI="${{MLFLOW_TRACKING_URI:-http://host.docker.internal:
 # Install dependencies
 pip install --quiet nautilus_trader stable-baselines3 gymnasium mlflow structlog pyyaml
 
+# Download training code if not exists
+CODE_DIR="{self.config.workspace}/nautilus-agents"
+if [ ! -d "$CODE_DIR" ]; then
+    echo "Downloading training code from Hetzner VPS..."
+    cd {self.config.workspace}
+    curl -L -o nautilus-agents-code.tar.gz {self.config.code_url}
+    echo "Extracting code..."
+    mkdir -p nautilus-agents
+    tar -xzf nautilus-agents-code.tar.gz -C nautilus-agents
+    rm nautilus-agents-code.tar.gz
+    echo "Code ready: $(ls -la $CODE_DIR)"
+fi
+
 # Download data catalog if not exists
 DATA_DIR="{self.config.workspace}/data/catalog"
 if [ ! -d "$DATA_DIR" ]; then
@@ -237,21 +255,14 @@ if [ ! -d "$DATA_DIR" ]; then
     mkdir -p {self.config.workspace}/data
     cd {self.config.workspace}/data
     curl -L -o catalog.tar.gz {self.config.data_url}
-    echo "Extracting..."
+    echo "Extracting data..."
     tar -xzf catalog.tar.gz
     rm catalog.tar.gz
     echo "Data catalog ready: $(du -sh $DATA_DIR)"
 fi
 
-# Clone/update repo
-if [ ! -d "{self.config.workspace}/nautilus-agents" ]; then
-    echo "Cloning nautilus-agents repo..."
-    cd {self.config.workspace}
-    git clone https://github.com/tu-usuario/nautilus-agents.git || echo "Clone failed, using local"
-fi
-
-# Navigate to workspace
-cd {self.config.workspace}/nautilus-agents 2>/dev/null || cd {self.config.workspace}
+# Navigate to code directory
+cd {self.config.workspace}/nautilus-agents
 
 # Create symlink to data
 mkdir -p data
@@ -373,7 +384,11 @@ exit $FAILED
             "H200": "NVIDIA H200 SXM",
         }
 
-        training_script = self.create_training_script(batch_id, agent_ids)
+        # Startup command: download and run the training script
+        startup_script_url = "http://46.225.11.110:8080/nautilus/pod_startup.sh"
+
+        # Agent IDs as space-separated string for the startup script
+        agent_ids_str = " ".join(agent_ids)
 
         pod_config = {
             "name": f"nautilus-batch-{batch_id}",
@@ -387,10 +402,15 @@ exit $FAILED
             "gpu_count": 1,
             "ports": "8888/http,22/tcp",
             "volume_mount_path": self.config.data_volume,
-            "docker_args": "",
+            "start_ssh": True,  # Enable SSH for debugging
             "env": {
                 "BATCH_ID": str(batch_id),
-                "MLFLOW_TRACKING_URI": os.getenv("MLFLOW_TRACKING_URI", ""),
+                "AGENT_IDS": agent_ids_str,
+                "DATA_URL": self.config.data_url,
+                "CODE_URL": self.config.code_url,
+                "STARTUP_SCRIPT": startup_script_url,
+                "KEEP_ALIVE": "true",  # Keep alive for monitoring
+                "PUBLIC_KEY": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDQQWcq+RayJZDpS2nYlO7jtMi8WKL2h+kMbbUjkTE07",
             },
         }
 
@@ -427,6 +447,112 @@ exit $FAILED
         except Exception as e:
             logger.error(f"Failed to launch pod: {e}")
             return None
+
+    def execute_training_on_pod(self, pod_id: str) -> bool:
+        """
+        Execute the training script on a running pod.
+
+        This is called after the pod is ready (has SSH access).
+
+        Args:
+            pod_id: The pod ID to execute on.
+
+        Returns:
+            Success status.
+        """
+        if not RUNPOD_AVAILABLE:
+            logger.error("RunPod SDK not available")
+            return False
+
+        try:
+            # Get pod details for SSH connection
+            pod = runpod.get_pod(pod_id)
+
+            if not pod:
+                logger.error(f"Pod {pod_id} not found")
+                return False
+
+            status = pod.get("desiredStatus")
+            if status != "RUNNING":
+                logger.error(f"Pod {pod_id} is not running (status: {status})")
+                return False
+
+            # Get SSH connection info
+            runtime = pod.get("runtime", {})
+            if not runtime:
+                logger.error(f"Pod {pod_id} runtime not ready yet")
+                return False
+
+            # Use runpod's execute endpoint if available
+            # Otherwise provide SSH command
+            startup_url = pod.get("env", {}).get("STARTUP_SCRIPT",
+                "http://46.225.11.110:8080/nautilus/pod_startup.sh")
+
+            cmd = f"curl -sL {startup_url} | bash"
+
+            logger.info(f"Executing training on pod {pod_id}...")
+            logger.info(f"Command: {cmd}")
+
+            # Try to execute via runpod API
+            try:
+                result = runpod.run_pod_command(pod_id, cmd)
+                logger.info(f"Execution started: {result}")
+                return True
+            except AttributeError:
+                # run_pod_command not available, provide manual instructions
+                ssh_cmd = f"ssh root@{pod_id}.runpod.io \"{cmd}\""
+                logger.info(f"Manual execution required:")
+                logger.info(f"  {ssh_cmd}")
+                print(f"\nTo start training manually, run:")
+                print(f"  {ssh_cmd}")
+                print(f"\nOr connect via RunPod web terminal and run:")
+                print(f"  {cmd}")
+                return True
+
+        except Exception as e:
+            logger.error(f"Failed to execute on pod: {e}")
+            return False
+
+    def wait_for_pod_ready(
+        self,
+        pod_id: str,
+        timeout: int = 300,
+        interval: int = 10,
+    ) -> bool:
+        """
+        Wait for a pod to be ready (SSH accessible).
+
+        Args:
+            pod_id: Pod ID to wait for.
+            timeout: Max wait time in seconds.
+            interval: Check interval in seconds.
+
+        Returns:
+            True if pod is ready, False if timeout.
+        """
+        import time
+        start_time = time.time()
+
+        while time.time() - start_time < timeout:
+            try:
+                pod = runpod.get_pod(pod_id)
+                runtime = pod.get("runtime", {}) or {}
+                uptime = runtime.get("uptimeInSeconds", 0)
+
+                if uptime > 0:
+                    logger.info(f"Pod {pod_id} is ready (uptime: {uptime}s)")
+                    return True
+
+                status = pod.get("desiredStatus", "UNKNOWN")
+                logger.info(f"Waiting for pod {pod_id}... ({status}, uptime: {uptime}s)")
+
+            except Exception as e:
+                logger.warning(f"Error checking pod: {e}")
+
+            time.sleep(interval)
+
+        logger.error(f"Timeout waiting for pod {pod_id}")
+        return False
 
     def upload_data_to_volume(
         self,
@@ -549,11 +675,20 @@ To upload data catalog to RunPod:
                     "agents": agents,
                 })
 
-                # For sequential execution, wait for this batch to complete
-                # before starting next (to stay within budget)
-                print(f"Pod {pod_id} launched. Waiting for completion...")
-                self._wait_for_pod(pod_id)
-                results["batches_completed"] += 1
+                # Wait for pod to be ready (SSH accessible)
+                print(f"Pod {pod_id} launched. Waiting for it to be ready...")
+                if self.wait_for_pod_ready(pod_id, timeout=300):
+                    # Execute training script
+                    print(f"Pod ready. Starting training...")
+                    self.execute_training_on_pod(pod_id)
+
+                    # Wait for training to complete
+                    print(f"Training started. Waiting for completion...")
+                    self._wait_for_pod(pod_id)
+                    results["batches_completed"] += 1
+                else:
+                    print(f"Pod {pod_id} failed to become ready. Terminating...")
+                    runpod.terminate_pod(pod_id)
             else:
                 print(f"Failed to launch batch {batch_id}")
                 break
@@ -770,6 +905,14 @@ Examples:
             pod_id = launcher.launch_pod(args.batch, agents)
             if pod_id:
                 print(f"Launched pod {pod_id} for batch {args.batch}")
+                print("Waiting for pod to be ready...")
+                if launcher.wait_for_pod_ready(pod_id, timeout=300):
+                    print("Pod ready! Starting training...")
+                    launcher.execute_training_on_pod(pod_id)
+                    print(f"\nPod {pod_id} is training. Monitor with:")
+                    print(f"  python training/runpod_launcher.py --monitor")
+                else:
+                    print("Pod failed to become ready. Check RunPod dashboard.")
         return
 
     if args.full_run:

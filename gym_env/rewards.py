@@ -1,7 +1,15 @@
-"""Reward functions for the trading environment."""
+"""
+Reward functions for the trading environment.
+
+Includes Triple Barrier reward (R-005) from ML Institutional:
+- Rewards based on TP/SL/Timeout barriers
+- Dynamic barriers based on volatility
+- Asymmetric risk/reward incentives
+"""
 
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
+from dataclasses import dataclass
 import numpy as np
 
 
@@ -13,6 +21,20 @@ class RewardType(str, Enum):
     SORTINO = "sortino"      # Sortino ratio based
     CALMAR = "calmar"        # Calmar ratio based
     RISK_ADJUSTED = "risk_adjusted"  # Custom risk-adjusted
+    TRIPLE_BARRIER = "triple_barrier"  # R-005: Institutional triple barrier
+
+
+@dataclass
+class TripleBarrierConfig:
+    """Configuration for Triple Barrier reward."""
+    pt_mult: float = 2.0      # Take profit multiplier (x volatility)
+    sl_mult: float = 1.0      # Stop loss multiplier (x volatility)
+    vol_lookback: int = 20    # Lookback for volatility calculation
+    max_holding_bars: int = 10  # Vertical barrier (max holding period)
+    tp_reward: float = 1.0    # Reward for hitting TP
+    sl_penalty: float = -1.0  # Penalty for hitting SL
+    timeout_reward: float = 0.0  # Reward for timeout (0 = return-based)
+    scale_by_return: bool = True  # Scale reward by actual return magnitude
 
 
 class RewardCalculator:
@@ -25,6 +47,7 @@ class RewardCalculator:
     - Sortino: Downside risk adjusted
     - Calmar: Drawdown adjusted
     - Risk-adjusted: Custom combination
+    - Triple Barrier: Institutional TP/SL/Timeout based (R-005)
     """
 
     def __init__(
@@ -34,6 +57,7 @@ class RewardCalculator:
         lookback_window: int = 20,
         risk_free_rate: float = 0.0,
         target_return: float = 0.0,
+        triple_barrier_config: Optional[TripleBarrierConfig] = None,
     ):
         """
         Initialize reward calculator.
@@ -44,6 +68,7 @@ class RewardCalculator:
             lookback_window: Window for calculating metrics.
             risk_free_rate: Annual risk-free rate (for Sharpe).
             target_return: Target return (for Sortino).
+            triple_barrier_config: Config for Triple Barrier reward (R-005).
         """
         self.reward_type = reward_type
         self.scaling = scaling
@@ -51,14 +76,35 @@ class RewardCalculator:
         self.risk_free_rate = risk_free_rate
         self.target_return = target_return
 
+        # Triple Barrier config (R-005)
+        self.tb_config = triple_barrier_config or TripleBarrierConfig()
+
         # State for tracking
         self._peak_value: float = 0.0
         self._returns_history: List[float] = []
+
+        # Triple Barrier state
+        self._trade_entry_price: float = 0.0
+        self._trade_entry_bar: int = 0
+        self._trade_direction: int = 0  # 1=long, -1=short, 0=no position
+        self._trade_tp_level: float = 0.0
+        self._trade_sl_level: float = 0.0
+        self._current_bar: int = 0
+        self._prices_history: List[float] = []
 
     def reset(self) -> None:
         """Reset calculator state."""
         self._peak_value = 0.0
         self._returns_history = []
+
+        # Reset Triple Barrier state
+        self._trade_entry_price = 0.0
+        self._trade_entry_bar = 0
+        self._trade_direction = 0
+        self._trade_tp_level = 0.0
+        self._trade_sl_level = 0.0
+        self._current_bar = 0
+        self._prices_history = []
 
     def calculate(
         self,
@@ -66,6 +112,8 @@ class RewardCalculator:
         prev_portfolio_value: float,
         returns: Optional[List[float]] = None,
         position: float = 0.0,
+        current_price: float = 0.0,
+        entry_price: float = 0.0,
     ) -> float:
         """
         Calculate reward for the current step.
@@ -74,7 +122,9 @@ class RewardCalculator:
             portfolio_value: Current portfolio value.
             prev_portfolio_value: Previous portfolio value.
             returns: List of historical returns.
-            position: Current position.
+            position: Current position (positive=long, negative=short).
+            current_price: Current bar close price (for Triple Barrier).
+            entry_price: Trade entry price (for Triple Barrier).
 
         Returns:
             Reward value.
@@ -89,10 +139,18 @@ class RewardCalculator:
         if portfolio_value > self._peak_value:
             self._peak_value = portfolio_value
 
-        # Store return
+        # Store return and price for history
         self._returns_history.append(step_return)
         if len(self._returns_history) > self.lookback_window:
             self._returns_history.pop(0)
+
+        if current_price > 0:
+            self._prices_history.append(current_price)
+            if len(self._prices_history) > self.tb_config.vol_lookback * 2:
+                self._prices_history.pop(0)
+
+        # Increment bar counter
+        self._current_bar += 1
 
         # Use provided returns or internal history
         returns_arr = np.array(returns if returns else self._returns_history)
@@ -115,6 +173,11 @@ class RewardCalculator:
         elif self.reward_type == RewardType.RISK_ADJUSTED:
             reward = self._risk_adjusted_reward(
                 returns_arr, portfolio_value, position, step_return
+            )
+
+        elif self.reward_type == RewardType.TRIPLE_BARRIER:
+            reward = self._triple_barrier_reward(
+                position, current_price, entry_price, step_return
             )
 
         else:
@@ -267,6 +330,160 @@ class RewardCalculator:
             return 0.0
 
         return np.sqrt(252 * 6) * mean_ret / std_ret
+
+    def _triple_barrier_reward(
+        self,
+        position: float,
+        current_price: float,
+        entry_price: float,
+        step_return: float,
+    ) -> float:
+        """
+        Triple Barrier reward function (R-005).
+
+        Rewards based on which barrier is hit first:
+        - Take Profit (TP): Large positive reward
+        - Stop Loss (SL): Negative penalty
+        - Timeout: Small reward based on return
+
+        This teaches the agent to:
+        1. Hold profitable trades until TP
+        2. Cut losses at SL
+        3. Not hold too long (timeout penalty)
+        """
+        # No position = no trade reward
+        if position == 0 or current_price == 0 or entry_price == 0:
+            # Small penalty for not trading (encourages activity)
+            return -0.001
+
+        # Detect new trade
+        current_direction = 1 if position > 0 else -1
+
+        if self._trade_direction == 0:
+            # New trade opened
+            self._trade_entry_price = entry_price
+            self._trade_entry_bar = self._current_bar
+            self._trade_direction = current_direction
+
+            # Calculate volatility for barriers
+            vol = self._calculate_volatility()
+
+            # Set barriers (as price levels)
+            if current_direction > 0:  # Long
+                self._trade_tp_level = entry_price * (1 + self.tb_config.pt_mult * vol)
+                self._trade_sl_level = entry_price * (1 - self.tb_config.sl_mult * vol)
+            else:  # Short
+                self._trade_tp_level = entry_price * (1 - self.tb_config.pt_mult * vol)
+                self._trade_sl_level = entry_price * (1 + self.tb_config.sl_mult * vol)
+
+            # Small reward for entering a trade
+            return 0.01
+
+        # Check if direction changed (trade closed)
+        if current_direction != self._trade_direction:
+            self._trade_direction = 0
+            self._trade_entry_price = 0
+            return step_return * 100  # Return PnL-based reward on exit
+
+        # Calculate current return from entry
+        if self._trade_direction > 0:  # Long
+            trade_return = (current_price - self._trade_entry_price) / self._trade_entry_price
+        else:  # Short
+            trade_return = (self._trade_entry_price - current_price) / self._trade_entry_price
+
+        # Check barriers
+        holding_bars = self._current_bar - self._trade_entry_bar
+
+        # Check Take Profit
+        if self._trade_direction > 0 and current_price >= self._trade_tp_level:
+            reward = self.tb_config.tp_reward
+            if self.tb_config.scale_by_return:
+                reward *= (1 + abs(trade_return) * 10)
+            return reward
+
+        if self._trade_direction < 0 and current_price <= self._trade_tp_level:
+            reward = self.tb_config.tp_reward
+            if self.tb_config.scale_by_return:
+                reward *= (1 + abs(trade_return) * 10)
+            return reward
+
+        # Check Stop Loss
+        if self._trade_direction > 0 and current_price <= self._trade_sl_level:
+            reward = self.tb_config.sl_penalty
+            if self.tb_config.scale_by_return:
+                reward *= (1 + abs(trade_return) * 5)
+            return reward
+
+        if self._trade_direction < 0 and current_price >= self._trade_sl_level:
+            reward = self.tb_config.sl_penalty
+            if self.tb_config.scale_by_return:
+                reward *= (1 + abs(trade_return) * 5)
+            return reward
+
+        # Check Timeout (vertical barrier)
+        if holding_bars >= self.tb_config.max_holding_bars:
+            if self.tb_config.timeout_reward != 0:
+                return self.tb_config.timeout_reward
+            else:
+                # Return-based reward for timeout
+                return trade_return * 50
+
+        # Still in trade, no barrier hit
+        # Small shaping reward based on progress toward TP
+        if trade_return > 0:
+            # Profitable: small positive reward proportional to progress
+            tp_distance = abs(self._trade_tp_level - self._trade_entry_price)
+            if tp_distance > 0:
+                progress = (current_price - self._trade_entry_price) / tp_distance
+                if self._trade_direction < 0:
+                    progress = (self._trade_entry_price - current_price) / tp_distance
+                return min(0.1, progress * 0.05)
+        else:
+            # Losing: small negative shaping
+            return trade_return * 10
+
+        return 0.0
+
+    def _calculate_volatility(self) -> float:
+        """Calculate volatility from price history."""
+        if len(self._prices_history) < 5:
+            return 0.02  # Default 2% volatility
+
+        prices = np.array(self._prices_history[-self.tb_config.vol_lookback:])
+        returns = np.diff(prices) / prices[:-1]
+
+        if len(returns) < 2:
+            return 0.02
+
+        return float(np.std(returns)) if np.std(returns) > 0 else 0.02
+
+    def update_trade_state(
+        self,
+        position: float,
+        entry_price: float,
+        current_price: float,
+    ) -> Dict[str, Any]:
+        """
+        Update and return Triple Barrier trade state.
+
+        Useful for debugging and visualization.
+
+        Returns:
+            Dict with trade state info.
+        """
+        return {
+            "direction": self._trade_direction,
+            "entry_price": self._trade_entry_price,
+            "tp_level": self._trade_tp_level,
+            "sl_level": self._trade_sl_level,
+            "holding_bars": self._current_bar - self._trade_entry_bar,
+            "max_holding": self.tb_config.max_holding_bars,
+            "current_price": current_price,
+            "current_return": (
+                (current_price - self._trade_entry_price) / self._trade_entry_price
+                if self._trade_entry_price > 0 else 0
+            ),
+        }
 
 
 class RewardShaper:
