@@ -80,6 +80,19 @@ class ExitGateEnv(gym.Wrapper):
 
         return self.env.step(inner_action)
 
+    # Expose inner env attributes needed by evaluate_policy() and DeterministicBaseline
+    @property
+    def _position(self):
+        return self.env._position
+
+    @property
+    def _current_bar_idx(self):
+        return self.env._current_bar_idx
+
+    @property
+    def _bars_data(self):
+        return self.env._bars_data
+
     def _get_current_obs(self):
         """Get current observation without stepping (for baseline decision)."""
         return self.env._get_observation_direct()
