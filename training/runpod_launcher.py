@@ -152,6 +152,7 @@ class RunPodLauncher:
 
         # State file for recovery
         self.state_file = Path(__file__).parent.parent / "training_state.json"
+        self._load_state()
 
     def estimate_cost(
         self,
