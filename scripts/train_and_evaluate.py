@@ -79,9 +79,13 @@ def train_seed(
     val_split: tuple,
     total_timesteps: int,
     output_dir: Path,
+    policy_mode: str = "baseline",
 ) -> Optional[Path]:
     """
     Train PPO with a single seed, using EvalCallback + early stopping.
+
+    Args:
+        policy_mode: "baseline" (4-action) or "baseline_plus_rl_exit" (2-action exit gate).
 
     Returns path to best model or None if training failed.
     """
@@ -118,6 +122,13 @@ def train_seed(
         bar_end_idx=val_split[1],
     )
     val_env = NautilusGymEnv(config=val_config)
+
+    # Wrap in ExitGateEnv if using exit gate mode
+    if policy_mode == "baseline_plus_rl_exit":
+        from gym_env.exit_gate_env import ExitGateEnv
+        from scripts.evaluate_policies import DeterministicBaseline
+        train_env = ExitGateEnv(train_env, DeterministicBaseline())
+        val_env = ExitGateEnv(val_env, DeterministicBaseline())
 
     # --- Callbacks ---
     stop_cb = StopTrainingOnNoModelImprovement(
@@ -202,6 +213,7 @@ def evaluate_on_test(
     seed: int,
     config_kwargs: Dict[str, Any],
     test_split: tuple,
+    policy_mode: str = "baseline",
 ) -> Dict[str, Any]:
     """Evaluate a trained model on the test set."""
     from stable_baselines3 import PPO
@@ -229,6 +241,9 @@ def evaluate_on_test(
         model = PPO.load(str(model_path))
         ml_policy = MLPolicy(model)
         env = NautilusGymEnv(config=test_config)
+        if policy_mode == "baseline_plus_rl_exit":
+            from gym_env.exit_gate_env import ExitGateEnv
+            env = ExitGateEnv(env, DeterministicBaseline())
         ml_result = evaluate_policy(ml_policy, env, n_episodes=1)
         ml_result["seed"] = seed
         results["ml"] = ml_result
@@ -252,6 +267,9 @@ def evaluate_on_test(
     try:
         random_policy = RandomPolicy()
         env = NautilusGymEnv(config=test_config)
+        if policy_mode == "baseline_plus_rl_exit":
+            from gym_env.exit_gate_env import ExitGateEnv
+            env = ExitGateEnv(env, DeterministicBaseline())
         random_result = evaluate_policy(random_policy, env, n_episodes=1)
         results["random"] = random_result
         env.close()
@@ -268,13 +286,20 @@ def evaluate_on_test(
 
 def apply_acceptance_criteria(
     seed_results: List[Dict[str, Any]],
+    policy_mode: str = "baseline",
 ) -> Dict[str, Any]:
     """
     Apply acceptance criteria across all seeds.
 
-    Criteria:
+    Criteria (baseline mode):
     1. NO over-trading: num_trades <= baseline_num_trades * 2
     2. max_drawdown <= baseline_max_drawdown * 1.2
+    3. pct_time_flat between 5% and 95%
+    4. Stability: std(total_return) < mean(total_return) * 2
+
+    Criteria (baseline_plus_rl_exit mode — stricter on risk):
+    1. num_trades <= baseline_num_trades * 1.2
+    2. max_drawdown <= baseline_max_drawdown * 0.9  (must improve DD)
     3. pct_time_flat between 5% and 95%
     4. Stability: std(total_return) < mean(total_return) * 2
     """
@@ -312,14 +337,20 @@ def apply_acceptance_criteria(
     mean_dd = float(np.mean(ml_drawdowns))
     mean_flat = float(np.mean(ml_flat_pcts))
 
-    # --- Criteria checks ---
+    # --- Criteria checks (thresholds depend on policy mode) ---
+    if policy_mode == "baseline_plus_rl_exit":
+        trade_mult = 1.2   # Max 20% more trades
+        dd_mult = 0.9      # Must IMPROVE drawdown by 10%
+    else:
+        trade_mult = 2.0
+        dd_mult = 1.2
 
     # 1. Over-trading
-    if mean_trades > baseline_trades * 2:
+    if mean_trades > baseline_trades * trade_mult:
         warnings.append("OVER-TRADING")
 
     # 2. Drawdown
-    if mean_dd > baseline_dd * 1.2:
+    if mean_dd > baseline_dd * dd_mult:
         warnings.append("HIGH-DRAWDOWN")
 
     # 3. Flat time
@@ -340,9 +371,9 @@ def apply_acceptance_criteria(
 
     reasons = []
     if "OVER-TRADING" in warnings:
-        reasons.append(f"Avg trades ({mean_trades:.0f}) > 2x baseline ({baseline_trades:.0f})")
+        reasons.append(f"Avg trades ({mean_trades:.0f}) > {trade_mult}x baseline ({baseline_trades:.0f})")
     if "HIGH-DRAWDOWN" in warnings:
-        reasons.append(f"Avg DD ({mean_dd*100:.1f}%) > 1.2x baseline ({baseline_dd*100:.1f}%)")
+        reasons.append(f"Avg DD ({mean_dd*100:.1f}%) > {dd_mult}x baseline ({baseline_dd*100:.1f}%)")
     if "UNSTABLE" in warnings:
         reasons.append(f"Return std ({std_return*100:.2f}%) > 2x mean ({mean_return*100:.2f}%)")
     if "ALWAYS-FLAT" in warnings:
@@ -523,11 +554,17 @@ def main():
         "--output", type=str, default="benchmark_results/",
         help="Output directory for results",
     )
+    parser.add_argument(
+        "--policy-mode", type=str,
+        choices=["baseline", "baseline_plus_rl_exit"],
+        default="baseline",
+        help="Policy mode: baseline (4-action) or baseline_plus_rl_exit (2-action exit gate)",
+    )
 
     args = parser.parse_args()
 
     print("=" * 70)
-    print("TRAINING & EVALUATION PROTOCOL — Ticket 5")
+    print(f"TRAINING & EVALUATION PROTOCOL — mode: {args.policy_mode}")
     print("=" * 70)
 
     # ------------------------------------------------------------------
@@ -583,6 +620,7 @@ def main():
             val_split=splits["val"],
             total_timesteps=args.timesteps,
             output_dir=output_dir,
+            policy_mode=args.policy_mode,
         )
         if model_path:
             best_models[seed] = model_path
@@ -609,6 +647,7 @@ def main():
             seed=seed,
             config_kwargs=config_kwargs,
             test_split=splits["test"],
+            policy_mode=args.policy_mode,
         )
         seed_results.append(result)
 
@@ -625,7 +664,7 @@ def main():
     # ------------------------------------------------------------------
     print("\n[4/5] Applying acceptance criteria...")
 
-    criteria = apply_acceptance_criteria(seed_results)
+    criteria = apply_acceptance_criteria(seed_results, policy_mode=args.policy_mode)
 
     print(f"  Verdict: {criteria['verdict']}")
     for w in criteria.get("warnings", []):
@@ -662,6 +701,7 @@ def main():
             "max_steps": args.max_steps,
             "start_date": args.start_date,
             "end_date": args.end_date,
+            "policy_mode": args.policy_mode,
         },
         "splits": splits,
         "seed_results": seed_results,
