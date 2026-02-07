@@ -12,7 +12,9 @@ Responsable: Claude Code (auditoria automatica)
 
 | Fuente | Venue | Instrumento | Tipo | Timeframe | Rango | Uso actual |
 |--------|-------|-------------|------|-----------|-------|------------|
-| NautilusTrader Catalog | BINANCE | BTCUSDT.BINANCE | Bars (OHLCV) | Daily | 2021-02-03 a 2026-01-31 | Backtest, Training RL, Benchmarking |
+| NautilusTrader Catalog | BINANCE | BTCUSDT.BINANCE | Bars (OHLCV) | 1-HOUR | 2020-01-01 a 2026-02-03 | Backtest, Training RL, Benchmarking |
+| Polygon.io | — | Varios (pendiente) | — | Pendiente | — | No integrado |
+| EODHD | — | Varios (pendiente) | — | Pendiente | — | No integrado |
 
 ---
 
@@ -21,6 +23,10 @@ Responsable: Claude Code (auditoria automatica)
 ### 2.1 NautilusTrader Catalog — BTCUSDT.BINANCE
 
 - **Ubicacion en disco**: `/opt/nautilus-agents/data/catalog/`
+
+- **Formato**: ParquetDataCatalog (NautilusTrader nativo)
+
+- **Tamano total**: ~39 MB
 
 - **Proveedor / Origen**:
   - Exchange: BINANCE
@@ -34,12 +40,11 @@ Responsable: Claude Code (auditoria automatica)
   - Bars (OHLCV)
 
 - **Timeframe**:
-  - Daily
+  - 1-HOUR
 
 - **Rango temporal**:
-  - Desde: 2021-02-03
-  - Hasta: 2026-01-31
-  - Total: 1793 barras
+  - Desde: 2020-01-01
+  - Hasta: 2026-02-03
 
 - **Transformaciones aplicadas**:
   - Ninguna (datos almacenados como bars estandar de Nautilus)
@@ -56,10 +61,29 @@ Responsable: Claude Code (auditoria automatica)
   - Produccion (pendiente validacion de ejecucion real)
 
 - **Limitaciones conocidas**:
-  - Solo timeframe diario
   - Un unico instrumento
   - Periodo incluye distintos regimenes de mercado (bull / bear)
-  - No incluye datos intradia ni trades
+
+### 2.2 Polygon.io (no activo)
+
+- **Estado**: Disponible en VPS
+- **Uso actual**: No integrado
+- **Instrumentos**: Varios (pendiente inventario)
+- **Timeframes**: Pendiente
+- **Notas**:
+  - No usado en backtests actuales
+  - No usado en paper trading
+  - No mezclado con el catalogo Nautilus
+
+### 2.3 EODHD (no activo)
+
+- **Estado**: Disponible en VPS
+- **Uso actual**: No integrado
+- **Instrumentos**: Varios (pendiente inventario)
+- **Timeframes**: Pendiente
+- **Notas**:
+  - No usado en el sistema actual
+  - No validado frente a ejecucion real
 
 ---
 
