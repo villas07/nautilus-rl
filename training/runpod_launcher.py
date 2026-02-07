@@ -27,7 +27,7 @@ Usage:
 import os
 import sys
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass, field
 import argparse
@@ -53,9 +53,6 @@ try:
 except ImportError:
     RUNPOD_AVAILABLE = False
     logger.warning("RunPod SDK not installed. Install with: pip install runpod")
-
-# Max hours a job can stay "RUNNING" before being marked stale
-STALE_JOB_TTL_HOURS = 4
 
 
 @dataclass
@@ -774,21 +771,6 @@ To upload data catalog to RunPod:
                 state = json.load(f)
                 self.active_pods = state.get("active_pods", [])
                 self.job_tracker = state.get("job_tracker", {})
-            self.check_stale_jobs()
-
-    def check_stale_jobs(self) -> None:
-        """Detect and mark RUNNING jobs that exceeded TTL."""
-        now = datetime.utcnow()
-        ttl = timedelta(hours=STALE_JOB_TTL_HOURS)
-
-        for job in self.job_tracker.values():
-            if job.get("status") == "RUNNING" and "started" in job:
-                try:
-                    started = datetime.fromisoformat(job["started"])
-                    if now - started > ttl:
-                        job["status"] = "STALE"
-                except Exception:
-                    pass
 
 
 def print_estimate(estimate: Dict[str, Any]) -> None:
