@@ -79,7 +79,7 @@ class NautilusEnvConfig:
     max_episode_steps: int = 252 * 6  # ~1 year of hourly bars
 
     # Observation settings
-    observation_features: int = 45
+    observation_features: int = 36
 
     # Action settings
     action_type: str = "discrete"  # discrete or continuous
@@ -88,14 +88,19 @@ class NautilusEnvConfig:
     max_position_pct: float = 0.30  # Max total position as % of equity
 
     # Reward settings
-    reward_type: str = "sharpe"
+    reward_type: str = "simple_v1"
     reward_scaling: float = 1.0
+    trade_penalty: float = 0.0005  # Fixed penalty per trade (SIMPLE_V1)
 
     # Triple Barrier settings (R-005)
     tb_pt_mult: float = 2.0       # Take profit = 2x volatility
     tb_sl_mult: float = 1.0       # Stop loss = 1x volatility
     tb_max_holding: int = 10      # Max bars to hold position
     tb_vol_lookback: int = 20     # Volatility calculation window
+
+    # Data split support
+    bar_start_idx: int = 0                    # First bar index to use (inclusive)
+    bar_end_idx: Optional[int] = None         # Last bar index (exclusive), None = all
 
     # Venue simulation
     default_leverage: float = 1.0
@@ -319,10 +324,11 @@ class NautilusBacktestEnv(gym.Env):
         )
 
         if self.config.action_type == "discrete":
-            self.action_space = spaces.Discrete(3)  # hold, buy, sell
+            self.action_space = spaces.Discrete(4)  # 0=hold, 1=close, 2=long, 3=short
         else:
-            self.action_space = spaces.Box(
-                low=-1.0, high=1.0, shape=(1,), dtype=np.float32
+            raise NotImplementedError(
+                "Continuous action space is not supported in this version. "
+                "Use action_type='discrete' with 4 actions: HOLD(0), CLOSE(1), LONG(2), SHORT(3)."
             )
 
         # Components
@@ -342,6 +348,7 @@ class NautilusBacktestEnv(gym.Env):
         self.reward_calculator = RewardCalculator(
             reward_type=RewardType(self.config.reward_type),
             scaling=self.config.reward_scaling,
+            trade_penalty=self.config.trade_penalty,
             triple_barrier_config=tb_config,
         )
 
@@ -360,6 +367,7 @@ class NautilusBacktestEnv(gym.Env):
         self._bars_data: List[Bar] = []
         self._current_bar_idx: int = 0
         self._position: float = 0.0  # Current position size
+        self._prev_position: float = 0.0  # Previous position for trade detection
         self._cash: float = 0.0
         self._entry_price: float = 0.0
         self._peak_equity: float = 0.0  # High watermark for drawdown calculation
@@ -519,6 +527,12 @@ class NautilusBacktestEnv(gym.Env):
         else:
             logger.error(f"Catalog not loaded! Path: {self.config.catalog_path}")
 
+        # Apply data split if configured
+        if self.config.bar_end_idx is not None:
+            self._bars_data = self._bars_data[self.config.bar_start_idx:self.config.bar_end_idx]
+        elif self.config.bar_start_idx > 0:
+            self._bars_data = self._bars_data[self.config.bar_start_idx:]
+
         # L-007 FIX: Validate that we have enough data for an episode
         min_bars_required = self.config.lookback_period + 10  # At least 10 steps after lookback
         if len(self._bars_data) < min_bars_required:
@@ -541,10 +555,12 @@ class NautilusBacktestEnv(gym.Env):
         self._peak_equity = self._initial_equity  # Reset high watermark
         self._cash = self._initial_equity
         self._position = 0.0
+        self._prev_position = 0.0
         self._entry_price = 0.0
 
-        # Reset reward calculator
+        # Reset reward calculator and observation stats
         self.reward_calculator.reset()
+        self.observation_builder.reset_stats()
 
         # Get initial observation
         observation = self._get_observation_direct()
@@ -565,21 +581,13 @@ class NautilusBacktestEnv(gym.Env):
         Execute one step using data-driven approach.
 
         Args:
-            action: Trading action (0=hold, 1=buy, 2=sell).
+            action: Trading action (0=hold, 1=close, 2=long, 3=short).
 
         Returns:
             Tuple of (observation, reward, terminated, truncated, info).
         """
-        # Convert continuous action to discrete if needed
-        if self.config.action_type == "continuous":
-            if action[0] > 0.3:
-                discrete_action = 1  # Buy
-            elif action[0] < -0.3:
-                discrete_action = 2  # Sell
-            else:
-                discrete_action = 0  # Hold
-        else:
-            discrete_action = int(action)
+        # Discrete only in V1
+        discrete_action = int(action)
 
         # Check if we have more bars
         if self._current_bar_idx >= len(self._bars_data):
@@ -591,8 +599,16 @@ class NautilusBacktestEnv(gym.Env):
         current_bar = self._bars_data[self._current_bar_idx]
         current_price = float(current_bar.close)
 
+        # Save position state before action for trade detection
+        self._prev_position = self._position
+
         # Execute action
         self._execute_action_direct(discrete_action, current_price)
+
+        # Detect if a trade occurred (position state changed)
+        prev_state = 1 if self._prev_position > 0 else (-1 if self._prev_position < 0 else 0)
+        curr_state = 1 if self._position > 0 else (-1 if self._position < 0 else 0)
+        traded = prev_state != curr_state
 
         # Advance to next bar
         self._current_bar_idx += 1
@@ -608,7 +624,7 @@ class NautilusBacktestEnv(gym.Env):
             step_return = 0.0
         self._returns.append(step_return)
 
-        # Calculate reward (with Triple Barrier support - R-005)
+        # Calculate reward
         reward = self.reward_calculator.calculate(
             portfolio_value=current_equity,
             prev_portfolio_value=self._prev_equity,
@@ -616,6 +632,7 @@ class NautilusBacktestEnv(gym.Env):
             position=self._position,
             current_price=current_price,
             entry_price=self._entry_price,
+            traded=traded,
         )
 
         # Update state
@@ -633,38 +650,92 @@ class NautilusBacktestEnv(gym.Env):
         observation = self._get_observation_direct()
 
         # Build info
+        total_return = (current_equity - self._initial_equity) / self._initial_equity if self._initial_equity > 0 else 0
+        drawdown = (self._peak_equity - current_equity) / self._peak_equity if self._peak_equity > 0 else 0
         info = {
             "equity": current_equity,
             "position": self._position,
             "step": self._step_count,
-            "total_return": (current_equity - self._initial_equity) / self._initial_equity if self._initial_equity > 0 else 0,
+            "total_return": total_return,
             "sharpe": self._calculate_sharpe(),
             "price": current_price,
+            "traded": traded,
         }
+
+        # Episode end logging
+        if terminated or truncated:
+            ep_stats = self.reward_calculator.get_episode_stats()
+            info["episode_stats"] = {
+                "total_return": total_return,
+                "max_drawdown": drawdown,
+                "num_trades": ep_stats["num_trades"],
+                "avg_hold_duration": ep_stats["avg_hold_duration"],
+            }
+            logger.info(
+                "episode_end",
+                steps=self._step_count,
+                total_return=f"{total_return:.4f}",
+                max_drawdown=f"{drawdown:.4f}",
+                num_trades=ep_stats["num_trades"],
+                avg_hold_duration=f"{ep_stats['avg_hold_duration']:.1f}",
+                final_equity=f"{current_equity:.2f}",
+            )
+
+            # Debug: log observation feature stats
+            obs_stats = self.observation_builder.get_stats()
+            if obs_stats:
+                logger.debug(
+                    "obs_feature_stats",
+                    obs_count=obs_stats["count"],
+                    saturated_total=obs_stats["saturated_total"],
+                    feature_min=f"[{', '.join(f'{v:.3f}' for v in obs_stats['min'])}]",
+                    feature_max=f"[{', '.join(f'{v:.3f}' for v in obs_stats['max'])}]",
+                    feature_mean=f"[{', '.join(f'{v:.3f}' for v in obs_stats['mean'])}]",
+                )
 
         return observation, reward, terminated, truncated, info
 
     def _execute_action_direct(self, action: int, price: float) -> None:
-        """Execute trading action directly (data-driven approach)."""
-        # Calculate position size based on % of equity
+        """
+        Execute trading action directly (data-driven approach).
+
+        Actions:
+            0 (HOLD):  No operation.
+            1 (CLOSE): Close current position → FLAT. Never opens a new one.
+            2 (LONG):  If flat → open long. If short → close + open long. If already long → no-op.
+            3 (SHORT): If flat → open short. If long → close + open short. If already short → no-op.
+        """
         current_equity = self._get_equity()
         position_value = current_equity * self.config.position_pct
-        trade_size = max(1.0, position_value / price)  # At least 1 unit
-
-        # Check max position limit
+        trade_size = max(1.0, position_value / price)
         max_position_value = current_equity * self.config.max_position_pct
         max_position_size = max_position_value / price
 
-        if action == 1:  # Buy
-            if self._position <= 0:
-                # Close short if any, then go long
-                if self._position < 0:
-                    # Close short
+        if action == 0:  # HOLD
+            pass
+
+        elif action == 1:  # CLOSE
+            if self._position > 0:  # Close long
+                pnl = (price - self._entry_price) * self._position
+                self._cash += pnl + (self._position * self._entry_price)
+                self._position = 0
+                self._entry_price = 0.0
+            elif self._position < 0:  # Close short
+                pnl = (self._entry_price - price) * abs(self._position)
+                self._cash += pnl + (abs(self._position) * self._entry_price)
+                self._position = 0
+                self._entry_price = 0.0
+            # If flat → no-op
+
+        elif action == 2:  # LONG
+            if self._position > 0:
+                pass  # Already long → no-op
+            else:
+                if self._position < 0:  # Close short first
                     pnl = (self._entry_price - price) * abs(self._position)
                     self._cash += pnl + (abs(self._position) * self._entry_price)
                     self._position = 0
-
-                # Open long (respecting max position)
+                # Open long
                 trade_size = min(trade_size, max_position_size)
                 cost = trade_size * price
                 if self._cash >= cost:
@@ -672,24 +743,21 @@ class NautilusBacktestEnv(gym.Env):
                     self._position = trade_size
                     self._entry_price = price
 
-        elif action == 2:  # Sell
-            if self._position >= 0:
-                # Close long if any, then go short
-                if self._position > 0:
-                    # Close long
+        elif action == 3:  # SHORT
+            if self._position < 0:
+                pass  # Already short → no-op
+            else:
+                if self._position > 0:  # Close long first
                     pnl = (price - self._entry_price) * self._position
                     self._cash += pnl + (self._position * self._entry_price)
                     self._position = 0
-
-                # Open short (respecting max position)
+                # Open short
                 trade_size = min(trade_size, max_position_size)
                 margin = trade_size * price
                 if self._cash >= margin:
-                    self._cash -= margin  # Margin for short
+                    self._cash -= margin
                     self._position = -trade_size
                     self._entry_price = price
-
-        # action == 0: Hold - do nothing
 
     def _get_equity(self) -> float:
         """Calculate current equity."""
@@ -742,6 +810,7 @@ class NautilusBacktestEnv(gym.Env):
             position=self._position,
             portfolio_value=self._get_equity(),
             initial_capital=self._initial_equity,
+            peak_equity=self._peak_equity,
         )
 
     def _get_observation(self) -> np.ndarray:
@@ -770,6 +839,7 @@ class NautilusBacktestEnv(gym.Env):
             position=state["position"],
             portfolio_value=state["equity"],
             initial_capital=self._initial_equity,
+            peak_equity=self._peak_equity,
         )
 
     def _check_terminated(self, equity: float) -> bool:
@@ -795,8 +865,8 @@ class NautilusBacktestEnv(gym.Env):
         if std == 0:
             return 0.0
 
-        # Annualized (assuming hourly)
-        return np.sqrt(252 * 6) * returns_arr.mean() / std
+        # Annualized (daily bars)
+        return np.sqrt(252) * returns_arr.mean() / std
 
     def render(self) -> None:
         """Render environment state."""
